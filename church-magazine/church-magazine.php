@@ -3,7 +3,7 @@
  * Plugin Name:       Church Magazine
  * Plugin URI:        https://github.com/ariezjamz-collab/hello-claude-pr
  * Description:       Publish digital magazine issues with a scrolling table of contents on the left and the magazine content in the center. Includes a simple backend for managing issues and articles.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Author:            Church Magazine
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // No direct access.
 }
 
-define( 'CM_VERSION', '1.0.0' );
+define( 'CM_VERSION', '1.1.0' );
 define( 'CM_PLUGIN_FILE', __FILE__ );
 define( 'CM_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CM_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

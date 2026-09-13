@@ -56,3 +56,18 @@
 .cm-links {
 	margin-top: 8px;
 }
+
+.cm-toc-table th,
+.cm-toc-table td {
+	padding: 8px;
+	vertical-align: middle;
+}
+
+.cm-toc-row-actions {
+	white-space: nowrap;
+}
+
+.cm-toc-row-actions .button {
+	padding: 0 6px;
+	min-width: 30px;
+}

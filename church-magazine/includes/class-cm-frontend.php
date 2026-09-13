@@ -28,7 +28,15 @@ class CM_Frontend {
 	}
 
 	public function maybe_enqueue_assets() {
-		if ( is_singular( CM_Post_Types::ISSUE_POST_TYPE ) || is_post_type_archive( CM_Post_Types::ISSUE_POST_TYPE ) ) {
+		if ( is_singular( CM_Post_Types::ISSUE_POST_TYPE ) ) {
+			self::enqueue_assets();
+			if ( 'pdf' === CM_Render::get_issue_mode( get_the_ID() ) ) {
+				self::enqueue_pdf_assets();
+			}
+			return;
+		}
+
+		if ( is_post_type_archive( CM_Post_Types::ISSUE_POST_TYPE ) ) {
 			self::enqueue_assets();
 			return;
 		}
@@ -61,6 +69,17 @@ class CM_Frontend {
 			'cm-frontend',
 			'ChurchMagazine',
 			array( 'smoothScroll' => $smooth_scroll )
+		);
+	}
+
+	public static function enqueue_pdf_assets() {
+		wp_enqueue_script( 'pdfjs', CM_PLUGIN_URL . 'assets/vendor/pdfjs/pdf.min.js', array(), CM_VERSION, true );
+		wp_enqueue_script( 'cm-pdf-viewer', CM_PLUGIN_URL . 'assets/js/pdf-viewer.js', array( 'pdfjs' ), CM_VERSION, true );
+
+		wp_localize_script(
+			'cm-pdf-viewer',
+			'ChurchMagazinePdf',
+			array( 'workerSrc' => CM_PLUGIN_URL . 'assets/vendor/pdfjs/pdf.worker.min.js' )
 		);
 	}
 }

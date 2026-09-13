@@ -27,6 +27,9 @@ class CM_Shortcodes {
 		}
 
 		CM_Frontend::enqueue_assets();
+		if ( 'pdf' === CM_Render::get_issue_mode( $issue_id ) ) {
+			CM_Frontend::enqueue_pdf_assets();
+		}
 
 		ob_start();
 		CM_Render::render_issue( $issue_id );

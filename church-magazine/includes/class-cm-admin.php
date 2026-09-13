@@ -106,13 +106,28 @@ class CM_Admin {
 			</div>
 
 			<div class="cm-guide">
-				<h2><?php esc_html_e( 'How it works', 'church-magazine' ); ?></h2>
+				<h2><?php esc_html_e( 'Two ways to publish an issue', 'church-magazine' ); ?></h2>
+				<p>
+					<strong><?php esc_html_e( 'Classic mode', 'church-magazine' ); ?></strong>
+					&mdash;
+					<?php esc_html_e( 'best for short issues written directly in WordPress.', 'church-magazine' ); ?>
+				</p>
 				<ol>
 					<li><?php esc_html_e( 'Create an Issue (e.g. "Fall 2026") and set its cover image and description.', 'church-magazine' ); ?></li>
 					<li><?php esc_html_e( 'Create Articles for that issue (e.g. "Pastor\'s Note", "Youth Ministry Update"). On each article, choose which Issue it belongs to and set an Order number.', 'church-magazine' ); ?></li>
-					<li><?php esc_html_e( 'Visitors open the Issue on the front end and see the article titles listed as a table of contents on the left. Clicking a title jumps straight to that article in the center.', 'church-magazine' ); ?></li>
-					<li><?php esc_html_e( 'Optionally attach a downloadable PDF to an Issue, and fine-tune colors under Settings.', 'church-magazine' ); ?></li>
+					<li><?php esc_html_e( 'Visitors open the Issue and see the article titles listed as a table of contents on the left; clicking one jumps straight to that article in the center.', 'church-magazine' ); ?></li>
 				</ol>
+				<p>
+					<strong><?php esc_html_e( 'PDF Flipbook mode (recommended for long issues)', 'church-magazine' ); ?></strong>
+					&mdash;
+					<?php esc_html_e( 'best when your magazine is already a print-ready PDF, even a 400-page one.', 'church-magazine' ); ?>
+				</p>
+				<ol>
+					<li><?php esc_html_e( 'Create an Issue, open its "Reading Mode & Magazine File" box, choose "PDF Flipbook", and upload the whole magazine PDF once.', 'church-magazine' ); ?></li>
+					<li><?php esc_html_e( 'In the "Table of Contents" box, type each section title with the page number it starts on (usually 20–50 rows, even for a long issue) — no need to re-create every page as a post.', 'church-magazine' ); ?></li>
+					<li><?php esc_html_e( 'Visitors get the same left menu / center reading layout, except the center is the actual PDF page; clicking a menu item jumps the viewer straight to that page.', 'church-magazine' ); ?></li>
+				</ol>
+				<p><?php esc_html_e( 'Fine-tune sidebar colors and width for either mode under Settings.', 'church-magazine' ); ?></p>
 			</div>
 
 			<div class="cm-links">
