@@ -1,2 +1,3 @@
 # hello-claude-pr
-My first PR shipped with Claude Code
+
+My first PR shipped with Claude Code.
