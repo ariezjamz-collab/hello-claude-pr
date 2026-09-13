@@ -1,0 +1,73 @@
+.cm-dashboard .cm-intro {
+	font-size: 1.05rem;
+	max-width: 700px;
+}
+
+.cm-stats {
+	display: flex;
+	gap: 16px;
+	margin: 24px 0;
+}
+
+.cm-stat-box {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	padding: 20px 28px;
+	min-width: 160px;
+}
+
+.cm-stat-number {
+	display: block;
+	font-size: 2rem;
+	font-weight: 700;
+	line-height: 1.1;
+}
+
+.cm-stat-label {
+	display: block;
+	color: #646970;
+	margin-top: 4px;
+}
+
+.cm-quick-actions {
+	margin: 24px 0;
+	display: flex;
+	gap: 12px;
+}
+
+.cm-guide {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	padding: 20px 28px;
+	max-width: 760px;
+	margin-bottom: 24px;
+}
+
+.cm-guide ol {
+	margin-left: 20px;
+}
+
+.cm-guide li {
+	margin-bottom: 10px;
+}
+
+.cm-links {
+	margin-top: 8px;
+}
+
+.cm-toc-table th,
+.cm-toc-table td {
+	padding: 8px;
+	vertical-align: middle;
+}
+
+.cm-toc-row-actions {
+	white-space: nowrap;
+}
+
+.cm-toc-row-actions .button {
+	padding: 0 6px;
+	min-width: 30px;
+}
