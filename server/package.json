@@ -1,0 +1,23 @@
+{
+  "name": "@pocket-club/server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Real-time game server: runs the tables and keeps the hidden information hidden",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "bots": "tsx src/bots.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pocket-club/engine": "*",
+    "socket.io": "^4.8.1",
+    "tsx": "^4.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "socket.io-client": "^4.8.1",
+    "typescript": "~5.9.2"
+  }
+}

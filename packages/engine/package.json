@@ -1,0 +1,17 @@
+{
+  "name": "@pocket-club/engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "No-Limit Texas Hold'em rules engine",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2",
+    "vitest": "^4.0.0"
+  }
+}
