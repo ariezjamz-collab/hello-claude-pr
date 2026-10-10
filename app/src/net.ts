@@ -11,7 +11,8 @@ type ReplyOf<E extends Event> = Parameters<Parameters<ClientToServer[E]>[1]>[0];
 export type Success<E extends Event> = Extract<ReplyOf<E>, { ok: true }>;
 
 export function connect(url: string): GameSocket {
-  return io(url, { transports: ['websocket'], reconnectionDelayMax: 3000 });
+  // Keep retrying quickly: on hill-area mobile networks short drop-outs are normal.
+  return io(url, { transports: ['websocket'], reconnectionDelay: 1000, reconnectionDelayMax: 5000, timeout: 10_000 });
 }
 
 /** Sends a request and resolves with the reply, or rejects with the server's error message. */
@@ -36,23 +37,3 @@ export function defaultServerUrl(): string {
   const host = Constants.expoConfig?.hostUri?.split(':')[0];
   return `http://${host ?? 'localhost'}:3000`;
 }
-
-/** Remembers the reconnect token in the browser so a page reload keeps your chips. On phones it lives for the app session. */
-let memoryToken: string | undefined;
-export const tokenStore = {
-  get(): string | undefined {
-    try {
-      return (typeof localStorage !== 'undefined' && localStorage.getItem('pocket-club-token')) || memoryToken;
-    } catch {
-      return memoryToken;
-    }
-  },
-  set(token: string) {
-    memoryToken = token;
-    try {
-      if (typeof localStorage !== 'undefined') localStorage.setItem('pocket-club-token', token);
-    } catch {
-      // Storage can be unavailable (private mode); the in-memory copy still works.
-    }
-  },
-};

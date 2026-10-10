@@ -7,7 +7,7 @@
     "app"
   ],
   "scripts": {
-    "test": "npm run test -w @pocket-club/engine",
+    "test": "npm run test -w @pocket-club/engine && npm run test -w @pocket-club/server",
     "typecheck": "npm run typecheck -w @pocket-club/engine && npm run typecheck -w @pocket-club/server && npm run typecheck -w app",
     "server": "npm run start -w @pocket-club/server",
     "app": "npm run start -w app"

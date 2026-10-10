@@ -1,0 +1,57 @@
+# Pocket Club production stack: PostgreSQL + game server + Caddy (automatic HTTPS).
+# Usage (on the server, from this folder):  cp .env.example .env  →  edit .env  →  docker compose up -d --build
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pocket
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: pocket
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pocket -d pocket']
+      interval: 5s
+      retries: 10
+
+  server:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://pocket:${POSTGRES_PASSWORD}@db:5432/pocket
+      GOOGLE_CLIENT_IDS: ${GOOGLE_CLIENT_IDS:-}
+      TURN_SECONDS: ${TURN_SECONDS:-30}
+      DISCONNECT_GRACE_SECONDS: ${DISCONNECT_GRACE_SECONDS:-60}
+    # On deploys, give running hands time to finish before the old server is stopped.
+    stop_grace_period: 150s
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://localhost:3000/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:

@@ -5,8 +5,10 @@
   "dependencies": {
     "@expo/metro-runtime": "~57.0.16",
     "@pocket-club/engine": "*",
+    "@react-native-google-signin/google-signin": "16.1.5",
     "expo": "~57.0.27",
     "expo-constants": "~57.0.21",
+    "expo-secure-store": "~57.0.4",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",

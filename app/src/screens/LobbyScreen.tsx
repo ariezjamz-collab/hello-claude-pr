@@ -14,13 +14,19 @@ const SEAT_OPTIONS = [2, 6, 9];
 interface Props {
   name: string;
   bank: number;
+  isGuest: boolean;
+  /** Whether this build can sign in with Google (not in Expo Go). */
+  canLinkGoogle: boolean;
   tables: LobbyTable[];
   onOpenTable: (tableId: string) => void;
   onCreateTable: (options: { name: string; smallBlind: number; bigBlind: number; maxSeats: number }) => Promise<void>;
   onRefill: () => void;
+  onLinkGoogle: () => Promise<void>;
+  onSignOut: () => void;
 }
 
-export function LobbyScreen({ name, bank, tables, onOpenTable, onCreateTable, onRefill }: Props) {
+export function LobbyScreen(props: Props) {
+  const { name, bank, isGuest, canLinkGoogle, tables, onOpenTable, onCreateTable, onRefill, onLinkGoogle, onSignOut } = props;
   const [creating, setCreating] = useState(false);
   const [tableName, setTableName] = useState('');
   const [stakes, setStakes] = useState(1);
@@ -42,18 +48,40 @@ export function LobbyScreen({ name, bank, tables, onOpenTable, onCreateTable, on
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.hello}>Hi, {name}</Text>
+        <View style={{ flexShrink: 1 }}>
+          <View style={styles.nameRow}>
+            <Text style={styles.hello} numberOfLines={1}>
+              Hi, {name}
+            </Text>
+            {isGuest && <Text style={styles.guestBadge}>Guest</Text>}
+          </View>
           <Text style={styles.bank}>
             <Text style={{ color: colors.accent }}>●</Text> {formatChips(bank)} chips
           </Text>
         </View>
-        {bank < 10_000 && (
-          <Pressable accessibilityRole="button" style={styles.smallButton} onPress={onRefill}>
-            <Text style={styles.smallButtonText}>Free chips</Text>
+        <View style={{ alignItems: 'flex-end', gap: 10 }}>
+          {bank < 10_000 && (
+            <Pressable accessibilityRole="button" style={styles.smallButton} onPress={onRefill}>
+              <Text style={styles.smallButtonText}>Free chips</Text>
+            </Pressable>
+          )}
+          <Pressable accessibilityRole="button" onPress={onSignOut} hitSlop={8}>
+            <Text style={styles.signOut}>Sign out</Text>
           </Pressable>
-        )}
+        </View>
       </View>
+
+      {isGuest && canLinkGoogle && (
+        <Pressable
+          accessibilityRole="button"
+          style={styles.linkCard}
+          onPress={() => onLinkGoogle().catch((err: Error) => setError(err.message))}
+        >
+          <Text style={styles.linkTitle}>Keep your chips safe</Text>
+          <Text style={styles.linkText}>Guest accounts live on this phone only. Tap to save yours with Google.</Text>
+        </Pressable>
+      )}
+      {error && !creating && <Text style={[styles.error, { marginBottom: 10 }]}>{error}</Text>}
 
       <View style={styles.sectionRow}>
         <Text style={styles.section}>Tables</Text>
@@ -127,7 +155,13 @@ function Choice({ label, selected, onPress }: { label: string; selected: boolean
 const styles = StyleSheet.create({
   screen: { flex: 1, padding: 16, maxWidth: 560, width: '100%', alignSelf: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 },
-  hello: { color: colors.text, fontSize: 24, fontWeight: '800' },
+  hello: { color: colors.text, fontSize: 24, fontWeight: '800', flexShrink: 1 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  guestBadge: { color: colors.textMuted, borderColor: colors.border, borderWidth: 1, borderRadius: 8, paddingHorizontal: 6, fontSize: 12 },
+  signOut: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
+  linkCard: { backgroundColor: colors.surfaceRaised, borderRadius: 14, padding: 14, marginBottom: 16, borderColor: colors.accent, borderWidth: 1 },
+  linkTitle: { color: colors.accent, fontWeight: '800', fontSize: 15 },
+  linkText: { color: colors.text, marginTop: 4 },
   bank: { color: colors.textMuted, fontSize: 16, marginTop: 4 },
   smallButton: { borderColor: colors.accent, borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
   smallButtonText: { color: colors.accent, fontWeight: '700' },

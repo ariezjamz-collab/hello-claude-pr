@@ -24,17 +24,30 @@ export interface TableState extends TableView {
 export type Reply<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 type Ack<T = object> = (reply: Reply<T>) => void;
 
+/**
+ * Sign in. Send `session` to resume a saved login. To start a new one, send `guestName` (play as a guest)
+ * or `googleIdToken` (from Google sign-in). Sending `googleIdToken` together with a guest's `session`
+ * links the guest account to Google, keeping its chips.
+ */
+export interface HelloPayload {
+  session?: string;
+  guestName?: string;
+  googleIdToken?: string;
+}
+
 export interface HelloReply {
   playerId: string;
-  /** Keep this to reconnect as the same player. */
-  token: string;
+  /** Secret login token. Store it to stay signed in. */
+  session: string;
   name: string;
   bank: number;
+  isGuest: boolean;
   tables: LobbyTable[];
 }
 
 export interface ClientToServer {
-  hello(payload: { name?: string; token?: string }, ack: Ack<HelloReply>): void;
+  hello(payload: HelloPayload, ack: Ack<HelloReply>): void;
+  logout(payload: object, ack: Ack): void;
   wallet(payload: object, ack: Ack<{ bank: number }>): void;
   'wallet:refill'(payload: object, ack: Ack<{ bank: number }>): void;
   'lobby:list'(payload: object, ack: Ack<{ tables: LobbyTable[] }>): void;
@@ -50,5 +63,7 @@ export interface ClientToServer {
 
 export interface ServerToClient {
   lobby(tables: LobbyTable[]): void;
+  /** A message to show every player, e.g. that the server is restarting. */
+  notice(message: string): void;
   'table:state'(state: TableState): void;
 }

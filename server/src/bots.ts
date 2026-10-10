@@ -26,37 +26,52 @@ function request<T>(socket: BotSocket, event: keyof ClientToServer, payload: obj
 
 async function runBot(index: number): Promise<void> {
   const socket: BotSocket = io(SERVER_URL, { transports: ['websocket'] });
-  const name = `${NAMES[index % NAMES.length]} (bot)`;
-  const hello = await request<HelloReply>(socket, 'hello', { name });
-  const table = hello.tables.find((t: LobbyTable) => t.name === tableName);
-  if (!table) throw new Error(`no table named "${tableName}"`);
+  const name = `${NAMES[index % NAMES.length]} Bot`;
+  let session: string | undefined;
+  let tableId: string | undefined;
 
-  let seated = false;
+  // Sign in (again) on every connection, so bots come back after a server restart.
+  socket.on('connect', async () => {
+    try {
+      const hello = await request<HelloReply>(socket, 'hello', session ? { session } : { guestName: name });
+      session = hello.session;
+      tableId = hello.tables.find((t: LobbyTable) => t.name === tableName)?.id;
+      if (!tableId) return console.log(`${name}: no table named "${tableName}"`);
+      await request(socket, 'table:watch', { tableId });
+    } catch (err) {
+      console.log(`${name}: ${(err as Error).message}`);
+    }
+  });
+
+  let sitting = false;
   let thinking = false;
   let latest: TableState | null = null;
   socket.on('table:state', async (state: TableState) => {
     latest = state;
+    if (!tableId) return;
     try {
-      if (!seated) {
+      if (state.mySeat === -1) {
+        if (sitting) return;
         const free = state.seats.flatMap((s, i) => (s === null ? [i] : []));
         if (free.length === 0) return console.log(`${name}: table is full`);
         // Spread bots over the free seats; if another bot wins the race, the next state update retries.
         const seat = free[index % free.length];
-        seated = true;
+        sitting = true;
         try {
-          await request(socket, 'table:sit', { tableId: table.id, seat, buyIn: state.config.bigBlind * 100 });
+          await request(socket, 'table:sit', { tableId, seat, buyIn: state.config.bigBlind * 100 });
           console.log(`${name} sat in seat ${seat}`);
         } catch {
-          seated = false;
-          setTimeout(() => request(socket, 'table:watch', { tableId: table.id }), 200 * (index + 1));
+          setTimeout(() => request(socket, 'table:watch', { tableId: tableId! }).catch(() => {}), 200 * (index + 1));
+        } finally {
+          sitting = false;
         }
         return;
       }
       const me = state.seats[state.mySeat];
       if (me && me.stack === 0 && state.phase !== 'betting') {
-        await request(socket, 'table:rebuy', { tableId: table.id, amount: state.config.bigBlind * 100 });
+        await request(socket, 'table:rebuy', { tableId, amount: state.config.bigBlind * 100 });
       } else if (me?.sittingOut && me.stack > 0) {
-        await request(socket, 'table:sitIn', { tableId: table.id, sittingOut: false });
+        await request(socket, 'table:sitIn', { tableId, sittingOut: false });
       }
       if (!state.legal || thinking) return;
       thinking = true;
@@ -65,14 +80,13 @@ async function runBot(index: number): Promise<void> {
       // The table may have moved on while the bot was "thinking".
       const now: TableState = latest;
       if (now.legal && now.handNumber === state.handNumber) {
-        await request(socket, 'table:action', { tableId: table.id, action: decide(now) });
+        await request(socket, 'table:action', { tableId, action: decide(now) });
       }
     } catch (err) {
       thinking = false;
       console.log(`${name}: ${(err as Error).message}`);
     }
   });
-  await request(socket, 'table:watch', { tableId: table.id });
 }
 
 /** A loose-passive bot with the occasional raise. Good enough to practise against. */

@@ -25,12 +25,14 @@ Run lint and typecheck before declaring any task done.
 
 ## Navigation & Routing
 
-- The app currently has three screens (connect, lobby, table) switched with plain React state in `App.tsx`; screens live in `src/screens/`.
+- The app currently has three screens (sign-in, lobby, table) switched with plain React state in `App.tsx`; screens live in `src/screens/`.
 - If navigation grows (deep links, a back stack, tabs), move to **Expo Router**. Docs: https://docs.expo.dev/router/introduction.md
 
 ## Project layout
 
 - Game rules come from the `@pocket-club/engine` workspace package; message types come from `server/src/protocol.ts`. Keep the server authoritative: the app only sends requests and renders the state it receives.
+- Build-time settings (`EXPO_PUBLIC_SERVER_URL`, `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`) are read in `src/config.ts`; store builds set them in `eas.json`.
+- Google sign-in (`@react-native-google-signin/google-signin`) is loaded lazily in `src/googleAuth.ts` so the app still runs in Expo Go (guest play only).
 
 ## Building with EAS
 
