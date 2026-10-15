@@ -125,9 +125,16 @@ static void DrawCameraFrame( std::vector< unsigned char >& rgba, int frame, bool
 			float head  = std::hypot( dx, v - 0.70f ) < 0.075f ? 1.0f : 0.0f;
 			float torso = std::fabs( dx ) < 0.11f - 0.05f * ( 0.55f - v ) && v > 0.12f && v < 0.60f ? 1.0f : 0.0f;
 			float body  = std::fmax( head, torso );
-			r += body * ( 0.85f - r );
-			g += body * ( 0.65f - g );
-			b += body * ( 0.55f - b );
+
+			// Rounded shading plus a dark print on the shirt, so tone-based looks have detail to work with.
+			float shade = 0.45f + 0.55f * std::fmax( 0.0f, 1.0f - std::fabs( dx ) / 0.13f );
+			if( head > 0.0f )
+				shade = 0.5f + 0.5f * std::fmax( 0.0f, 1.0f - std::hypot( dx + 0.02f, v - 0.72f ) / 0.08f );
+			float print = torso > 0.0f && std::hypot( dx, v - 0.38f ) < 0.06f && std::hypot( dx, v - 0.38f ) > 0.035f ? 0.35f : 1.0f;
+			float fr = 0.85f * shade * print, fg = 0.65f * shade * print, fb = 0.55f * shade * print;
+			r += body * ( fr - r );
+			g += body * ( fg - g );
+			b += body * ( fb - b );
 
 			float beam = std::exp( -std::pow( ( u - 0.5f - 0.4f * std::sin( t * 0.7f ) ) * 9.0f + ( v - 1.0f ) * 2.0f, 2.0f ) );
 			r += 0.25f * beam;
@@ -137,9 +144,9 @@ static void DrawCameraFrame( std::vector< unsigned char >& rgba, int frame, bool
 			float a = 1.0f;
 			if( keyed )
 			{
-				r = body * 0.85f;
-				g = body * 0.65f;
-				b = body * 0.55f;
+				r = body * fr;
+				g = body * fg;
+				b = body * fb;
 				a = body;
 			}
 
@@ -176,9 +183,17 @@ static std::map< std::string, std::map< std::string, float > > Presets()
 		{ "flame_motion", { { "Subject Source", 0.0f }, { "Flame Amount", 0.8f }, { "Burn Edges", 0.3f } } },
 		{ "flame_keyed", { { "_keyed", 1.0f }, { "Subject Source", 1.0f }, { "Burn Edges", 0.7f }, { "Tracker HUD", 1.0f } } },
 		{ "flame_disperse", { { "Subject Source", 0.0f }, { "Dispersion", 0.9f }, { "Disperse Mode", 1.0f }, { "Heat Haze", 0.9f },
-							  { "Distortion", 0.3f }, { "Tracker HUD", 3.0f }, { "Mono Tint", 1.0f } } },
-		{ "flame_blue_track", { { "Subject Source", 0.0f }, { "Flame Color", 1.0f }, { "Track Focus", 0.8f }, { "Tracker HUD", 2.0f },
+							  { "Distortion", 0.3f }, { "Tracker HUD", 4.0f }, { "Mono Tint", 1.0f } } },
+		{ "flame_squares", { { "_keyed", 1.0f }, { "Subject Source", 1.0f }, { "Tracker HUD", 2.0f }, { "Square Count", 2.0f },
+							 { "Flame Amount", 0.4f } } },
+		{ "flame_blue_track", { { "Subject Source", 0.0f }, { "Flame Color", 1.0f }, { "Track Focus", 0.8f }, { "Tracker HUD", 1.0f },
 								{ "Beat Pulse", 0.7f }, { "Wind", 0.75f } } },
+		// IMAG Looks: one preset per look, by index in the Look dropdown.
+		{ "look_0", { { "Look", 0.0f } } }, { "look_1", { { "Look", 1.0f } } }, { "look_2", { { "Look", 2.0f } } },
+		{ "look_3", { { "Look", 3.0f } } }, { "look_4", { { "Look", 4.0f } } }, { "look_5", { { "Look", 5.0f } } },
+		{ "look_6", { { "Look", 6.0f } } }, { "look_7", { { "Look", 7.0f } } }, { "look_8", { { "Look", 8.0f } } },
+		{ "look_9", { { "Look", 9.0f } } }, { "look_10", { { "Look", 10.0f } } }, { "look_11", { { "Look", 11.0f } } },
+		{ "look_12", { { "Look", 12.0f } } },
 		{ "everything", { { "Red Delay", 0.3f }, { "Blue Delay", 0.1f }, { "Chroma Split", 0.3f }, { "Trails", 0.7f }, { "Trail Zoom", 0.58f },
 						  { "Trail Hue", 0.1f }, { "Glitch", 0.6f }, { "Sheen", 0.6f }, { "Static", 0.15f }, { "Scanlines", 0.3f } } },
 	};

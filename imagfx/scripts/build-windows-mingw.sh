@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cross-compile ImagFX.dll and ImagFlame.dll for Windows x64 from Linux with MinGW-w64, and optionally test it under Wine.
+# Cross-compile the IMAG plugin DLLs for Windows x64 from Linux with MinGW-w64, and optionally test them under Wine.
 #
 #   scripts/build-windows-mingw.sh <ffgl-sdk-dir> <glew-2.1.0-source-dir> [out-dir]
 #
@@ -25,7 +25,7 @@ CXXFLAGS=("${FLAGS[@]}" -std=c++14 -Wno-attributes)
 
 $CC "${FLAGS[@]}" -c "$GLEW_DIR/src/glew.c" -o "$OUT_DIR/glew.o"
 $CXX "${CXXFLAGS[@]}" -c "$SDK_LIB/FFGLSDK.cpp" -o "$OUT_DIR/ffglsdk.o"
-for PLUGIN in ImagFX ImagFlame; do
+for PLUGIN in ImagFX ImagFlame ImagLooks; do
 	$CXX "${CXXFLAGS[@]}" -c "$SRC_DIR/src/$PLUGIN.cpp" -o "$OUT_DIR/$PLUGIN.o"
 	$CXX -shared -static -static-libgcc -static-libstdc++ -o "$OUT_DIR/$PLUGIN.dll" \
 		"$OUT_DIR/$PLUGIN.o" "$OUT_DIR/ffglsdk.o" "$OUT_DIR/glew.o" -lopengl32

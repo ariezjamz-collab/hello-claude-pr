@@ -174,6 +174,7 @@ uniform sampler2D CurrentTex; // unit 0
 uniform sampler2D HeatTex;    // unit 1
 uniform sampler2D MaskTex;    // unit 2
 uniform sampler2D StateTex;   // unit 3
+uniform sampler2D MomentTex;  // unit 4: mask moments; mip level GridLevel holds per-cell centroids
 
 uniform vec2 Resolution;
 uniform vec2 SimTexel;
@@ -191,8 +192,10 @@ uniform int DispersionMode;// 0 follows the distortion, 1 radial from the tracke
 uniform int Palette;
 uniform float Glow;
 uniform float Behind;
-uniform int Hud;           // 0 off, 1 box, 2 crosshair, 3 ring
+uniform int Hud;           // 0 off, 1 squares, 2 squares + lines, 3 box, 4 ring
 uniform float HudOpacity;
+uniform int GridLevel;     // mip level of MomentTex used for the squares grid
+uniform float SquareSize;  // pixels
 
 in vec2 uv;
 in vec2 inUV;
@@ -236,14 +239,75 @@ float hudLine( float distance, float px )
 	return 1.0 - smoothstep( px * 0.5, px * 1.5, distance );
 }
 
+float segmentDistance( vec2 p, vec2 a, vec2 b )
+{
+	vec2 ab = b - a;
+	float t = clamp( dot( p - a, ab ) / max( dot( ab, ab ), 1e-6 ), 0.0, 1.0 );
+	return length( p - a - ab * t );
+}
+
+// A grid cell carries a tracking square if the subject's outline passes through it (partial coverage),
+// plus a sparse random sprinkle of fully covered cells, so squares trace the silhouette instead of
+// tiling the body.
+bool squareCell( vec4 m, ivec2 c )
+{
+	return m.z > 0.08 && ( m.z < 0.85 || hash12( vec2( c ) * 1.37 ) < 0.15 );
+}
+
+// Small squares, each centred on the subject's centroid within its grid cell. With links, neighbouring
+// square cells are joined by thin lines.
+float drawSquares( bool links )
+{
+	int cells    = 256 >> GridLevel;
+	vec2 cellPx  = Resolution / float( cells );
+	ivec2 cell   = ivec2( floor( uv * float( cells ) ) );
+	vec2 pixel   = uv * Resolution;
+	float px     = 1.0;
+	float result = 0.0;
+	for( int y = -1; y <= 1; ++y )
+		for( int x = -1; x <= 1; ++x )
+		{
+			ivec2 c = cell + ivec2( x, y );
+			if( any( lessThan( c, ivec2( 0 ) ) ) || any( greaterThanEqual( c, ivec2( cells ) ) ) )
+				continue;
+			vec4 m = texelFetch( MomentTex, c, GridLevel );
+			if( !squareCell( m, c ) )
+				continue;
+			vec2 centre    = m.xy / m.z * Resolution;
+			float halfSize = min( SquareSize, 0.42 * min( cellPx.x, cellPx.y ) );
+			vec2 d      = abs( pixel - centre );
+			float box   = max( d.x, d.y );
+			result      = max( result, hudLine( abs( box - halfSize ), px ) );
+			result      = max( result, 1.0 - smoothstep( 0.8, 1.6, length( pixel - centre ) ) );// centre dot
+			if( links )
+			{
+				for( int n = 0; n < 2; ++n )
+				{
+					ivec2 nc = c + ( n == 0 ? ivec2( 1, 0 ) : ivec2( 0, 1 ) );
+					if( any( greaterThanEqual( nc, ivec2( cells ) ) ) )
+						continue;
+					vec4 nm = texelFetch( MomentTex, nc, GridLevel );
+					if( !squareCell( nm, nc ) )
+						continue;
+					vec2 other = nm.xy / nm.z * Resolution;
+					result     = max( result, 0.55 * hudLine( segmentDistance( pixel, centre, other ), px * 0.7 ) );
+				}
+			}
+		}
+	return result;
+}
+
 float drawHud( vec4 state )
 {
+	if( Hud == 1 || Hud == 2 )
+		return drawSquares( Hud == 2 );
+
 	float aspect = Resolution.x / Resolution.y;
 	float px     = 1.5 / Resolution.y;
 	vec2 p       = ( uv - state.xy ) * vec2( aspect, 1.0 );
 	vec2 halfBox = max( state.zw * 2.0, vec2( 0.03 ) ) * vec2( aspect, 1.0 );
 
-	if( Hud == 1 )
+	if( Hud == 3 )
 	{
 		// Corner brackets: each box edge drawn only in its outer 30% near the corners.
 		vec2 a      = abs( p );
@@ -251,16 +315,7 @@ float drawHud( vec4 state )
 		float edgeV = hudLine( abs( a.x - halfBox.x ), px ) * step( halfBox.y * 0.7, a.y ) * step( a.y, halfBox.y + px );
 		return max( edgeH, edgeV );
 	}
-	if( Hud == 2 )
-	{
-		vec2 a      = abs( p );
-		float gap   = 0.025;
-		float reach = max( halfBox.x, halfBox.y ) * 1.3;
-		float h     = hudLine( a.y, px ) * step( gap, a.x ) * step( a.x, reach );
-		float v     = hudLine( a.x, px ) * step( gap, a.y ) * step( a.y, reach );
-		return max( max( h, v ), hudLine( abs( length( p ) - 0.008 ), px ) );
-	}
-	if( Hud == 3 )
+	if( Hud == 4 )
 	{
 		float r     = max( halfBox.x, halfBox.y ) * 1.1;
 		float angle = atan( p.y, p.x ) + Time * 0.8;
@@ -313,7 +368,7 @@ void main()
 
 	if( Hud > 0 && HudOpacity > 0.0 )
 	{
-		float line = drawHud( state ) * HudOpacity * confidence;
+		float line = drawHud( state ) * HudOpacity * ( Hud <= 2 ? 1.0 : confidence );
 		col.rgb    = mix( col.rgb, vec3( 1.0, 0.92, 0.8 ), line );
 		col.a      = max( col.a, line );
 	}

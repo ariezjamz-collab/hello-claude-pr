@@ -1,18 +1,19 @@
 # IMAG FX
 
-Two camera-look effect plugins for Resolume Arena/Avenue (FFGL 2.x, C++/OpenGL/GLSL). Each is a separate file and appears separately in Arena's Effects browser.
+Three camera-look effect plugins for Resolume Arena/Avenue (FFGL 2.x, C++/OpenGL/GLSL). Each is a separate file and appears separately in Arena's Effects browser.
 
 | Plugin | File | What it does |
 |---|---|---|
 | **IMAG FX** | `ImagFX.dll` / `ImagFX.bundle` | Glitch looks: RGB time delay, feedback trails, noise warp, beat-synced slice glitch, sheen sweep, scanlines, static |
-| **IMAG Flame** | `ImagFlame.dll` / `ImagFlame.bundle` | Monochrome camera with flame trails rising off the subject, heat-haze distortion, spectral dispersion and subject tracking with an optional HUD |
+| **IMAG Flame** | `ImagFlame.dll` / `ImagFlame.bundle` | Monochrome camera with flame trails rising off the subject, heat-haze distortion, spectral dispersion and subject tracking with small tracking squares |
+| **IMAG Looks** | `ImagLooks.dll` / `ImagLooks.bundle` | Effects panel: one dropdown of camera looks (night vision, fire map, gold edge, analog TV, glitter, comic, halftone, paper texture, animated cartoon, ...) with shared controls |
 
-- `src/`: the plugins (`ImagFX.cpp`, `ImagFlame.cpp`) and their shaders
+- `src/`: the plugins (`ImagFX.cpp`, `ImagFlame.cpp`, `ImagLooks.cpp`) and their shaders
 - `test/`: a headless FFGL host for rendering and checking the plugins without Resolume (Linux, or Windows/Wine)
-- `scripts/build-windows-mingw.sh`: cross-compiles both DLLs from Linux
+- `scripts/build-windows-mingw.sh`: cross-compiles all three DLLs from Linux
 - Ready-made Windows and macOS builds: GitHub Actions (`.github/workflows/imagfx.yml`) attaches them to a release on every push
 - `docs/ANALYSIS.md`: product analysis, how the effects work, build/install instructions, roadmap
-- `docs/test-renders.png`, `docs/flame-renders.png`: frames rendered by the test host
+- `docs/test-renders.png`, `docs/flame-renders.png`, `docs/looks-renders.png`: frames rendered by the test host
 
 ## IMAG Flame
 
@@ -45,7 +46,8 @@ Six GPU passes per frame, with no CPU readback:
 | Dispersion, Disperse Mode | Rainbow spectral split, either following the haze or radiating from the tracked subject |
 | Track Focus | Concentrates flames around the tracked subject's centre |
 | Track Smooth | Higher = steadier, slower tracking |
-| Tracker HUD, HUD Opacity | Off / corner Box / Crosshair / spinning Ring that follows the subject |
+| Tracker HUD, HUD Opacity | **Squares** (default): small tracking squares along the subject's outline, plus a few inside. **Squares + Lines** joins neighbouring squares. Also Box, Ring, or Off |
+| Square Count, Square Size | Few / Medium / Many squares, and their size |
 | Beat Pulse | Flames surge on every beat of Resolume's BPM |
 | Reset Flames | Clears the flames and re-centres the tracker |
 
@@ -53,6 +55,41 @@ Six GPU passes per frame, with no CPU readback:
 - On a static camera, **Motion** needs no keying, but a still subject stops emitting.
 - For flames that keep burning on a still subject, key the camera (NVIDIA Broadcast background removal + Auto Mask) and choose **Keyed alpha**.
 - A moving camera makes the whole frame "move", so use **Keyed alpha** there too.
+
+## IMAG Looks
+
+Our own looks in the style of the reference reel. Every look follows the same recipe: crush the stage to black, turn the performer into high-contrast monochrome, recolour with a gradient map, then add the look's signature detail.
+
+| Look | What it is |
+|---|---|
+| Night Vision | Green gradient map with soft glow, scanlines and grain |
+| Fire Map | Black → red → orange → yellow, with hot edges |
+| Gold Edge | Gold gradient map with strong glowing outlines |
+| Blood Red | Crushed pink-red duotone |
+| Analog TV | Grey with scanlines, horizontal ghosting and a rolling noise band |
+| Glitter Ice | Ice-blue with sparkles thrown off the subject's edges |
+| Ice Cyan | Cyan duotone with scanlines |
+| Faded Film | Lifted blacks, warm desaturated tones |
+| RGB Split | High-contrast mono with red/cyan split and beat-triggered slice glitches |
+| Comic | Pop-art bands with Ben-Day dots and ink outlines |
+| Halftone | CMYK dot screen on paper |
+| Paper Texture | Printed onto fibrous paper, with stop-motion jitter |
+| Animated Cartoon | Flat cel shading with ink outlines that "boil" like hand-drawn animation |
+
+| Control | What it does |
+|---|---|
+| Mix | Dry/wet |
+| Look | The dropdown above. Stylised looks sit below a separator |
+| Intensity | Strength of the look |
+| Black Crush, Contrast | How hard the background goes to black, and the S-curve |
+| Edge Glow | Glowing outlines in the look's highlight colour |
+| Dot / Cell Size | Halftone/comic dot size, cartoon shading bands |
+| Texture | Grain, scanlines, paper fibres |
+| Sparkles | Adds Glitter Ice's sparkles to any look |
+| Hue Shift | Rotates the look's colours for your own palette |
+| BPM Sync, Animation Rate | Beat-locks RGB Split's glitches; sets the cartoon boil / paper jitter rate |
+
+**Tip:** for black backgrounds like the reel, key the camera (NVIDIA Broadcast + Auto Mask). The looks keep the transparency, so you can stack IMAG Looks after IMAG Flame or IMAG FX on the same clip.
 
 ## Build
 
@@ -63,4 +100,4 @@ cmake -S . -B build -A x64
 cmake --build build --config Release
 ```
 
-Copy `build\Release\ImagFX.dll` and `build\Release\ImagFlame.dll` to `Documents\Resolume Arena\Extra Effects\` and restart Arena. macOS and Linux steps are in `docs/ANALYSIS.md`.
+Copy `ImagFX.dll`, `ImagFlame.dll` and `ImagLooks.dll` from `build\Release\` to `Documents\Resolume Arena\Extra Effects\` and restart Arena. macOS and Linux steps are in `docs/ANALYSIS.md`.

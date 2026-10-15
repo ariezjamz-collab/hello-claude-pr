@@ -33,6 +33,8 @@ enum ParamID : FFUInt32
 	PID_TRACK_SMOOTH,
 	PID_HUD,
 	PID_HUD_OPACITY,
+	PID_HUD_DENSITY,
+	PID_SQUARE_SIZE,
 	PID_BEAT_PULSE,
 	PID_RESET,
 	PID_COUNT
@@ -70,8 +72,10 @@ const std::vector< ParamDef > kParams = {
 	{ PID_DISPERSION_MODE, "Disperse Mode", FF_TYPE_OPTION, 0.0f, { "Follow haze", "Radial from subject" } },
 	{ PID_FOCUS, "Track Focus", FF_TYPE_STANDARD, 0.0f, {} },
 	{ PID_TRACK_SMOOTH, "Track Smooth", FF_TYPE_STANDARD, 0.6f, {} },
-	{ PID_HUD, "Tracker HUD", FF_TYPE_OPTION, 0.0f, { "Off", "Box", "Crosshair", "Ring" } },
+	{ PID_HUD, "Tracker HUD", FF_TYPE_OPTION, 1.0f, { "Off", "Squares", "Squares + Lines", "Box", "Ring" } },
 	{ PID_HUD_OPACITY, "HUD Opacity", FF_TYPE_STANDARD, 0.8f, {} },
+	{ PID_HUD_DENSITY, "Square Count", FF_TYPE_OPTION, 1.0f, { "Few", "Medium", "Many" } },
+	{ PID_SQUARE_SIZE, "Square Size", FF_TYPE_STANDARD, 0.35f, {} },
 	{ PID_BEAT_PULSE, "Beat Pulse", FF_TYPE_STANDARD, 0.0f, {} },
 	{ PID_RESET, "Reset Flames", FF_TYPE_EVENT, 0.0f, {} },
 };
@@ -387,10 +391,12 @@ FFResult ImagFlame::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 		bindTexture( 1, heat[ heatWrite ].GetTextureInfo().Handle );
 		bindTexture( 2, mask.GetTextureInfo().Handle );
 		bindTexture( 3, trackerState[ stateWrite ].GetTextureInfo().Handle );
+		bindTexture( 4, momentTextures[ 0 ] );
 		compositeShader.Set( "CurrentTex", 0 );
 		compositeShader.Set( "HeatTex", 1 );
 		compositeShader.Set( "MaskTex", 2 );
 		compositeShader.Set( "StateTex", 3 );
+		compositeShader.Set( "MomentTex", 4 );
 		compositeShader.Set( "MaxUV", 1.0f, 1.0f );
 		compositeShader.Set( "Resolution", width, height );
 		compositeShader.Set( "SimTexel", 1.0f / simWidth, 1.0f / simHeight );
@@ -407,10 +413,12 @@ FFResult ImagFlame::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 		compositeShader.Set( "Palette", OptionIndex( params[ PID_PALETTE ], 5 ) );
 		compositeShader.Set( "Glow", params[ PID_GLOW ] * 2.0f );
 		compositeShader.Set( "Behind", params[ PID_BEHIND ] );
-		compositeShader.Set( "Hud", OptionIndex( params[ PID_HUD ], 4 ) );
+		compositeShader.Set( "Hud", OptionIndex( params[ PID_HUD ], 5 ) );
 		compositeShader.Set( "HudOpacity", params[ PID_HUD_OPACITY ] );
+		compositeShader.Set( "GridLevel", 5 - OptionIndex( params[ PID_HUD_DENSITY ], 3 ) );//8x8, 16x16 or 32x32 cells
+		compositeShader.Set( "SquareSize", 3.0f + params[ PID_SQUARE_SIZE ] * 14.0f );
 		quad.Draw();
-		unbindTextures( 4 );
+		unbindTextures( 5 );
 	}
 
 	heatRead  = heatWrite;

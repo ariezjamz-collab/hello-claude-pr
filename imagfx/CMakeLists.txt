@@ -57,6 +57,7 @@ endfunction()
 
 add_imag_plugin(ImagFX src/ImagFX.cpp src/ImagFX.h src/ImagFXShaders.h src/ShaderCommon.h)
 add_imag_plugin(ImagFlame src/ImagFlame.cpp src/ImagFlame.h src/ImagFlameShaders.h src/ShaderCommon.h)
+add_imag_plugin(ImagLooks src/ImagLooks.cpp src/ImagLooks.h src/ImagLooksShaders.h src/ShaderCommon.h)
 
 option(IMAGFX_BUILD_TEST_HOST "Build the headless test host (Linux, EGL)" OFF)
 if(IMAGFX_BUILD_TEST_HOST)
