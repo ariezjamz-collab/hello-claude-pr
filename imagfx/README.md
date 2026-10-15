@@ -1,9 +1,10 @@
 # IMAG FX
 
-Four camera effect plugins for Resolume Arena/Avenue (FFGL 2.x, C++/OpenGL/GLSL). Each is a separate file and appears separately in Arena's Effects browser.
+Five camera effect plugins for Resolume Arena/Avenue (FFGL 2.x, C++/OpenGL/GLSL). Each is a separate file and appears separately in Arena's Effects browser.
 
 | Plugin | File | What it does |
 |---|---|---|
+| **IMAG Blob** | `ImagBlob.dll` / `ImagBlob.bundle` | Blob tracking: squares on moving subjects, connecting lines and numbers above each square, over a Normal / Monochrome / Dual Tone / ASCII / Halftone feed |
 | **IMAG Key** | `ImagKey.dll` / `ImagKey.bundle` | Keys the performer out of the camera (difference, chroma or luma key) so the other effects can use **Keyed alpha** |
 | **IMAG FX** | `ImagFX.dll` / `ImagFX.bundle` | Glitch looks: RGB time delay, feedback trails, noise warp, beat-synced slice glitch, sheen sweep, scanlines, static |
 | **IMAG Flame** | `ImagFlame.dll` / `ImagFlame.bundle` | Monochrome camera with flame trails rising off the subject, heat-haze distortion, spectral dispersion and subject tracking with small tracking squares |
@@ -11,10 +12,30 @@ Four camera effect plugins for Resolume Arena/Avenue (FFGL 2.x, C++/OpenGL/GLSL)
 
 - `src/`: the plugins (`ImagFX.cpp`, `ImagFlame.cpp`, `ImagLooks.cpp`) and their shaders
 - `test/`: a headless FFGL host for rendering and checking the plugins without Resolume (Linux, or Windows/Wine)
-- `scripts/build-windows-mingw.sh`: cross-compiles all four DLLs from Linux
+- `scripts/build-windows-mingw.sh`: cross-compiles all five DLLs from Linux
 - Ready-made Windows and macOS builds: GitHub Actions (`.github/workflows/imagfx.yml`) attaches them to a release on every push
 - `docs/ANALYSIS.md`: product analysis, how the effects work, build/install instructions, roadmap
-- `docs/test-renders.png`, `docs/flame-renders.png`, `docs/looks-renders.png`, `docs/looks-overlays.png`, `docs/key-renders.png`: frames rendered by the test host
+- `docs/test-renders.png`, `docs/flame-renders.png`, `docs/looks-renders.png`, `docs/looks-overlays.png`, `docs/key-renders.png`, `docs/blob-renders.png`: frames rendered by the test host
+
+## IMAG Blob
+
+Live blob tracking. It finds what moves (or the keyed / bright subject), puts a square on each blob with a number above it, and links blobs with lines. All of this is drawn over the camera feed, which you can restyle.
+
+**How it works:** the GPU builds the subject mask and a grid of blob positions; a small grid (a few KB) is read back each frame. On the CPU, blobs are matched to the previous frame, so each one keeps its identity and number as it moves. Squares, lines and digits are drawn as geometry, and digits and ASCII come from a small built-in pixel font. Every feed mode is its own small shader, compiled on first use. If a driver ever rejects one, the plain camera shows and **Status** gives the driver's reason.
+
+| Group | Controls |
+|---|---|
+| Detection | **Detect** (Motion / Keyed alpha / Brightness / Motion in key), Threshold, Grid (8–64 cells), **Blob Mode** (Points: one square per tracked spot; Regions: one square around each connected region), Max Blobs, **Spacing** (minimum distance between blobs), Smoothing |
+| Squares | Square Style (Outline / Filled / Corners), Square Size, Square Thickness, **Square Intensity**, Square Colour |
+| Lines | Lines (Off / Nearest / Network), Links Per Blob, Link Distance, Line Thickness, Line Intensity, Line Colour |
+| Numbers | Numbers (Off / Random / Blob ID / Coordinates), Digits, Number Speed, Numbers On Beat, Number Size, Number Intensity, Number Colour |
+| Feed | **Feed** (Normal / Monochrome / Dual Tone / ASCII / Halftone), Feed Mix, Feed Contrast, ASCII / Dot Size, Feed Dark and Feed Light colours (dual tone colours; ASCII background/characters; halftone ink/paper), Status |
+
+**Tips:**
+- On a fixed camera, **Motion** tracks whatever moves.
+- To track only the performer, put **IMAG Key** first and set **Detect → Keyed alpha**.
+- Raise **Spacing** or lower **Max Blobs** for a cleaner look.
+- **Regions** with **Corners** gives large framing boxes.
 
 ## IMAG Key
 

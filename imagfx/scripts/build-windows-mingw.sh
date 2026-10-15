@@ -25,7 +25,7 @@ CXXFLAGS=("${FLAGS[@]}" -std=c++14 -Wno-attributes)
 
 $CC "${FLAGS[@]}" -c "$GLEW_DIR/src/glew.c" -o "$OUT_DIR/glew.o"
 $CXX "${CXXFLAGS[@]}" -c "$SDK_LIB/FFGLSDK.cpp" -o "$OUT_DIR/ffglsdk.o"
-for PLUGIN in ImagFX ImagFlame ImagLooks ImagKey; do
+for PLUGIN in ImagFX ImagFlame ImagLooks ImagKey ImagBlob; do
 	$CXX "${CXXFLAGS[@]}" -c "$SRC_DIR/src/$PLUGIN.cpp" -o "$OUT_DIR/$PLUGIN.o"
 	$CXX -shared -static -static-libgcc -static-libstdc++ -o "$OUT_DIR/$PLUGIN.dll" \
 		"$OUT_DIR/$PLUGIN.o" "$OUT_DIR/ffglsdk.o" "$OUT_DIR/glew.o" -lopengl32

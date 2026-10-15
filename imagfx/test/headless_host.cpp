@@ -220,6 +220,13 @@ static std::map< std::string, std::map< std::string, float > > Presets()
 		{ "key_into_looks", { { "_empty_frames", 40.0f }, { "Subject Source", 1.0f }, { "Look", 2.0f }, { "Tracking", 1.0f },
 							  { "Echo Level", 0.8f }, { "Depth", 0.6f } } },
 		{ "key_into_flame", { { "_greenscreen", 1.0f }, { "Key Mode", 1.0f }, { "Subject Source", 1.0f } } },
+		// IMAG Blob.
+		{ "blob_default", { { "Detect", 0.0f } } },
+		{ "blob_regions_mono", { { "Blob Mode", 1.0f }, { "Feed", 1.0f }, { "Lines", 2.0f }, { "Square Style", 2.0f }, { "Grid", 3.0f } } },
+		{ "blob_dualtone", { { "Feed", 2.0f }, { "Numbers", 2.0f }, { "Square Style", 1.0f }, { "Square Colour", 0.2f } } },
+		{ "blob_ascii", { { "Feed", 3.0f }, { "Lines", 2.0f }, { "Numbers", 3.0f } } },
+		{ "blob_halftone", { { "Feed", 4.0f }, { "Number Size", 0.6f }, { "Square Size", 0.8f } } },
+		{ "blob_keyed", { { "_empty_frames", 40.0f }, { "Detect", 1.0f }, { "Grid", 1.0f } } },
 		{ "everything", { { "Red Delay", 0.3f }, { "Blue Delay", 0.1f }, { "Chroma Split", 0.3f }, { "Trails", 0.7f }, { "Trail Zoom", 0.58f },
 						  { "Trail Hue", 0.1f }, { "Glitch", 0.6f }, { "Sheen", 0.6f }, { "Static", 0.15f }, { "Scanlines", 0.3f } } },
 	};
@@ -385,14 +392,16 @@ int main( int argc, char** argv )
 
 			// FFGL contract: the plugin must hand the context back in its default state.
 			GLint program, activeUnit, drawFBO, boundTex;
+			const GLboolean blending = glIsEnabled( GL_BLEND );
 			glGetIntegerv( GL_CURRENT_PROGRAM, &program );
 			glGetIntegerv( GL_ACTIVE_TEXTURE, &activeUnit );
 			glGetIntegerv( GL_DRAW_FRAMEBUFFER_BINDING, &drawFBO );
 			glGetIntegerv( GL_TEXTURE_BINDING_2D, &boundTex );
 			GLenum err = glGetError();
-			if( err != GL_NO_ERROR || program != 0 || activeUnit != GL_TEXTURE0 || drawFBO != (GLint)plugin.fbo || boundTex != 0 )
+			if( err != GL_NO_ERROR || program != 0 || activeUnit != GL_TEXTURE0 || drawFBO != (GLint)plugin.fbo || boundTex != 0 || blending )
 			{
-				std::fprintf( stderr, "frame %d: GL error 0x%x program %d unit 0x%x fbo %d tex %d\n", frame, err, program, activeUnit, drawFBO, boundTex );
+				std::fprintf( stderr, "frame %d: GL error 0x%x program %d unit 0x%x fbo %d tex %d blend %d\n", frame, err, program, activeUnit, drawFBO,
+							  boundTex, (int)blending );
 				++failures;
 			}
 			source = plugin.texture;

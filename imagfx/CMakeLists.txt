@@ -57,6 +57,7 @@ endfunction()
 
 add_imag_plugin(ImagFX src/ImagFX.cpp src/ImagFX.h src/ImagFXShaders.h src/ShaderCommon.h src/PluginLog.h)
 add_imag_plugin(ImagFlame src/ImagFlame.cpp src/ImagFlame.h src/ImagFlameShaders.h src/ShaderCommon.h src/PluginLog.h)
+add_imag_plugin(ImagBlob src/ImagBlob.cpp src/ImagBlob.h src/ImagBlobShaders.h src/ShaderCommon.h src/PluginLog.h)
 add_imag_plugin(ImagKey src/ImagKey.cpp src/ImagKey.h src/ImagKeyShaders.h src/ShaderCommon.h src/PluginLog.h)
 add_imag_plugin(ImagLooks src/ImagLooks.cpp src/ImagLooks.h src/ImagLooksShaders.h src/ShaderCommon.h src/PluginLog.h)
 
