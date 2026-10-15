@@ -1,0 +1,244 @@
+// Minimal FFGL host for testing the plugin without Resolume (Linux, GLX on Xvfb).
+//
+// It loads the plugin through plugMain exactly like a host does, feeds it a synthetic animated "camera"
+// frame, drives SetTime / SetBeatInfo at 120 BPM, checks the plugin leaves GL state as FFGL requires,
+// and writes selected output frames as PPM images.
+//
+//   headless_host <plugin.so> <out_dir> <preset> [frames]
+#include <GL/glew.h>
+#include <GL/glx.h>
+#include <dlfcn.h>
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <map>
+#include <string>
+#include <vector>
+#include <ffgl/FFGL.h>
+
+static const int W = 640, H = 360;
+
+typedef GLXContext ( *CreateContextAttribs )( Display*, GLXFBConfig, GLXContext, Bool, const int* );
+
+static bool CreateContext()
+{
+	Display* display = XOpenDisplay( nullptr );
+	if( !display )
+		return false;
+	int fbAttribs[] = { GLX_DRAWABLE_TYPE, GLX_PBUFFER_BIT, GLX_RENDER_TYPE, GLX_RGBA_BIT, None };
+	int count       = 0;
+	GLXFBConfig* configs = glXChooseFBConfig( display, DefaultScreen( display ), fbAttribs, &count );
+	if( !configs || count == 0 )
+		return false;
+	auto createContext = (CreateContextAttribs)glXGetProcAddressARB( (const GLubyte*)"glXCreateContextAttribsARB" );
+	int ctxAttribs[]   = { GLX_CONTEXT_MAJOR_VERSION_ARB, 4, GLX_CONTEXT_MINOR_VERSION_ARB, 1,
+                         GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_CORE_PROFILE_BIT_ARB, None };
+	GLXContext context = createContext( display, configs[ 0 ], nullptr, True, ctxAttribs );
+	int pbAttribs[]    = { GLX_PBUFFER_WIDTH, 16, GLX_PBUFFER_HEIGHT, 16, None };
+	GLXPbuffer pbuffer = glXCreatePbuffer( display, configs[ 0 ], pbAttribs );
+	if( !context || !glXMakeContextCurrent( display, pbuffer, pbuffer, context ) )
+		return false;
+	glewExperimental = GL_TRUE;
+	if( glewInit() != GLEW_OK )
+		return false;
+	while( glGetError() != GL_NO_ERROR ) {}//glewInit may leave a harmless GL_INVALID_ENUM in core profiles.
+	return true;
+}
+
+// A stand-in for a stage camera: dark gradient background, a bright "performer" silhouette that sways,
+// and a moving light beam, so time-based effects have something to act on.
+static void DrawCameraFrame( std::vector< unsigned char >& rgba, int frame )
+{
+	float t  = frame / 60.0f;
+	float cx = 0.5f + 0.18f * std::sin( t * 2.1f );
+	for( int y = 0; y < H; ++y )
+	{
+		for( int x = 0; x < W; ++x )
+		{
+			float u = ( x + 0.5f ) / W, v = ( y + 0.5f ) / H;
+			float r = 0.05f + 0.10f * v, g = 0.04f + 0.06f * v, b = 0.10f + 0.20f * v;
+
+			float dx    = ( u - cx ) * W / H;
+			float head  = std::hypot( dx, v - 0.70f ) < 0.075f ? 1.0f : 0.0f;
+			float torso = std::fabs( dx ) < 0.11f - 0.05f * ( 0.55f - v ) && v > 0.12f && v < 0.60f ? 1.0f : 0.0f;
+			float body  = std::fmax( head, torso );
+			r += body * ( 0.85f - r );
+			g += body * ( 0.65f - g );
+			b += body * ( 0.55f - b );
+
+			float beam = std::exp( -std::pow( ( u - 0.5f - 0.4f * std::sin( t * 0.7f ) ) * 9.0f + ( v - 1.0f ) * 2.0f, 2.0f ) );
+			r += 0.25f * beam;
+			g += 0.30f * beam;
+			b += 0.45f * beam;
+
+			unsigned char* p = &rgba[ ( y * W + x ) * 4 ];
+			p[ 0 ]           = (unsigned char)( std::fmin( r, 1.0f ) * 255.0f );
+			p[ 1 ]           = (unsigned char)( std::fmin( g, 1.0f ) * 255.0f );
+			p[ 2 ]           = (unsigned char)( std::fmin( b, 1.0f ) * 255.0f );
+			p[ 3 ]           = 255;
+		}
+	}
+}
+
+static void WritePPM( const std::string& path, const std::vector< unsigned char >& rgba )
+{
+	FILE* f = std::fopen( path.c_str(), "wb" );
+	std::fprintf( f, "P6\n%d %d\n255\n", W, H );
+	for( int y = H - 1; y >= 0; --y )//GL rows are bottom-up.
+		for( int x = 0; x < W; ++x )
+			std::fwrite( &rgba[ ( y * W + x ) * 4 ], 1, 3, f );
+	std::fclose( f );
+}
+
+static std::map< std::string, std::map< std::string, float > > Presets()
+{
+	return {
+		{ "dry", { { "Mix", 0.0f } } },
+		{ "red_delay", { { "Red Delay", 0.4f }, { "Blue Delay", 0.0f }, { "Chroma Split", 0.4f } } },
+		{ "trails", { { "Red Delay", 0.0f }, { "Chroma Split", 0.0f }, { "Trails", 0.85f }, { "Trail Zoom", 0.62f }, { "Trail Hue", 0.15f } } },
+		{ "sheen_static", { { "Red Delay", 0.0f }, { "Sheen", 0.9f }, { "Sheen Width", 0.25f }, { "Static", 0.35f }, { "Scanlines", 0.5f } } },
+		{ "glitch_warp", { { "Glitch", 1.0f }, { "Warp", 0.6f }, { "Warp Scale", 0.4f }, { "Beat Rate", 2.0f } } },
+		{ "everything", { { "Red Delay", 0.3f }, { "Blue Delay", 0.1f }, { "Chroma Split", 0.3f }, { "Trails", 0.7f }, { "Trail Zoom", 0.58f },
+						  { "Trail Hue", 0.1f }, { "Glitch", 0.6f }, { "Sheen", 0.6f }, { "Static", 0.15f }, { "Scanlines", 0.3f } } },
+	};
+}
+
+int main( int argc, char** argv )
+{
+	if( argc < 4 )
+	{
+		std::fprintf( stderr, "usage: %s <plugin.so> <out_dir> <preset> [frames]\n", argv[ 0 ] );
+		return 2;
+	}
+	std::string outDir = argv[ 2 ], preset = argv[ 3 ];
+	int frames         = argc > 4 ? std::atoi( argv[ 4 ] ) : 120;
+	auto presets       = Presets();
+	if( !presets.count( preset ) )
+	{
+		std::fprintf( stderr, "unknown preset %s\n", preset.c_str() );
+		return 2;
+	}
+	if( !CreateContext() )
+	{
+		std::fprintf( stderr, "could not create a GL 4.1 core context\n" );
+		return 1;
+	}
+	std::printf( "GL: %s / %s\n", glGetString( GL_RENDERER ), glGetString( GL_VERSION ) );
+
+	void* lib = dlopen( argv[ 1 ], RTLD_NOW );
+	if( !lib )
+	{
+		std::fprintf( stderr, "dlopen: %s\n", dlerror() );
+		return 1;
+	}
+	auto plugMain = (FF_Main_FuncPtr)dlsym( lib, "plugMain" );
+	FFMixed in, out;
+
+	in.UIntValue = 0;
+	if( plugMain( FF_INITIALISE_V2, in, nullptr ).UIntValue != FF_SUCCESS )
+		return 1;
+
+	FFGLViewportStruct viewport = { 0, 0, W, H };
+	in.PointerValue             = &viewport;
+	FFInstanceID instance       = plugMain( FF_INSTANTIATE_GL, in, nullptr ).PointerValue;
+	if( !instance )
+	{
+		std::fprintf( stderr, "instantiate failed (shader compile?)\n" );
+		return 1;
+	}
+
+	std::map< std::string, FFUInt32 > paramIndex;
+	in.UIntValue          = 0;
+	FFUInt32 numParams    = plugMain( FF_GET_NUM_PARAMETERS, in, nullptr ).UIntValue;
+	for( FFUInt32 i = 0; i < numParams; ++i )
+	{
+		in.UIntValue = i;
+		paramIndex[ (const char*)plugMain( FF_GET_PARAMETER_NAME, in, nullptr ).PointerValue ] = i;
+	}
+	std::printf( "%u parameters\n", numParams );
+	for( auto& kv : presets[ preset ] )
+	{
+		if( !paramIndex.count( kv.first ) )
+		{
+			std::fprintf( stderr, "plugin has no parameter '%s'\n", kv.first.c_str() );
+			return 1;
+		}
+		SetParameterStruct set;
+		set.ParameterNumber = paramIndex[ kv.first ];
+		std::memcpy( &set.NewParameterValue.UIntValue, &kv.second, sizeof( float ) );
+		in.PointerValue = &set;
+		plugMain( FF_SET_PARAMETER, in, instance );
+	}
+
+	GLuint inputTex, outputTex, hostFBO;
+	glGenTextures( 1, &inputTex );
+	glBindTexture( GL_TEXTURE_2D, inputTex );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, W, H, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+	glGenTextures( 1, &outputTex );
+	glBindTexture( GL_TEXTURE_2D, outputTex );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, W, H, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr );
+	glBindTexture( GL_TEXTURE_2D, 0 );
+	glGenFramebuffers( 1, &hostFBO );
+	glBindFramebuffer( GL_FRAMEBUFFER, hostFBO );
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outputTex, 0 );
+
+	FFGLTextureStruct inputStruct = { W, H, W, H, inputTex };
+	FFGLTextureStruct* inputs[]   = { &inputStruct };
+	ProcessOpenGLStruct process   = { 1, inputs, hostFBO };
+	std::vector< unsigned char > pixels( W * H * 4 );
+	const float bpm               = 120.0f;
+	int failures                  = 0;
+
+	for( int frame = 0; frame < frames; ++frame )
+	{
+		DrawCameraFrame( pixels, frame );
+		glBindTexture( GL_TEXTURE_2D, inputTex );
+		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data() );
+		glBindTexture( GL_TEXTURE_2D, 0 );
+
+		double seconds        = frame / 60.0;
+		in.PointerValue       = &seconds;
+		plugMain( FF_SET_TIME, in, instance );
+		SetBeatinfoStruct beat = { bpm, (float)std::fmod( seconds * bpm / 60.0 / 4.0, 1.0 ) };
+		in.PointerValue        = &beat;
+		plugMain( FF_SET_BEATINFO, in, instance );
+
+		glBindFramebuffer( GL_FRAMEBUFFER, hostFBO );
+		glViewport( 0, 0, W, H );
+		glClearColor( 0, 0, 0, 0 );
+		glClear( GL_COLOR_BUFFER_BIT );
+		in.PointerValue = &process;
+		if( plugMain( FF_PROCESS_OPENGL, in, instance ).UIntValue != FF_SUCCESS )
+		{
+			std::fprintf( stderr, "frame %d: ProcessOpenGL failed\n", frame );
+			return 1;
+		}
+
+		// FFGL contract: the plugin must hand the context back in its default state.
+		GLint program, activeUnit, drawFBO, boundTex;
+		glGetIntegerv( GL_CURRENT_PROGRAM, &program );
+		glGetIntegerv( GL_ACTIVE_TEXTURE, &activeUnit );
+		glGetIntegerv( GL_DRAW_FRAMEBUFFER_BINDING, &drawFBO );
+		glGetIntegerv( GL_TEXTURE_BINDING_2D, &boundTex );
+		GLenum err = glGetError();
+		if( err != GL_NO_ERROR || program != 0 || activeUnit != GL_TEXTURE0 || drawFBO != (GLint)hostFBO || boundTex != 0 )
+		{
+			std::fprintf( stderr, "frame %d: GL error 0x%x program %d unit 0x%x fbo %d tex %d\n", frame, err, program, activeUnit, drawFBO, boundTex );
+			++failures;
+		}
+
+		if( frame == frames - 1 || frame == frames / 2 || frame == frames / 2 + 7 )
+		{
+			glReadPixels( 0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data() );
+			WritePPM( outDir + "/" + preset + "_" + std::to_string( frame ) + ".ppm", pixels );
+		}
+	}
+
+	plugMain( FF_DEINSTANTIATE_GL, in, instance );
+	in.UIntValue = 0;
+	plugMain( FF_DEINITIALISE, in, nullptr );
+	std::printf( "%s: %d frames, %d state/GL failures\n", preset.c_str(), frames, failures );
+	return failures == 0 ? 0 : 1;
+}
