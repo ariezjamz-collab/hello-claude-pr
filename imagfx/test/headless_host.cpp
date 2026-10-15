@@ -109,9 +109,16 @@ static FF_Main_FuncPtr LoadPlugin( const char* path )
 
 // A stand-in for a stage camera: dark gradient background, a bright "performer" silhouette that sways,
 // and a moving light beam, so time-based effects have something to act on.
-// With `keyed`, the background is transparent (premultiplied), as after background removal + Auto Mask.
-static void DrawCameraFrame( std::vector< unsigned char >& rgba, int frame, bool keyed )
+struct CameraOptions
 {
+	bool keyed       = false;// transparent background (premultiplied), as after background removal + Auto Mask
+	bool greenScreen = false;// performer in front of a slightly uneven green screen
+	int emptyFrames  = 0;    // the first frames show the empty stage, as when learning a background plate
+};
+
+static void DrawCameraFrame( std::vector< unsigned char >& rgba, int frame, const CameraOptions& options )
+{
+	const bool keyed = options.keyed;
 	float t  = frame / 60.0f;
 	float cx = 0.5f + 0.18f * std::sin( t * 2.1f );
 	for( int y = 0; y < H; ++y )
@@ -124,7 +131,12 @@ static void DrawCameraFrame( std::vector< unsigned char >& rgba, int frame, bool
 			float dx    = ( u - cx ) * W / H;
 			float head  = std::hypot( dx, v - 0.70f ) < 0.075f ? 1.0f : 0.0f;
 			float torso = std::fabs( dx ) < 0.11f - 0.05f * ( 0.55f - v ) && v > 0.12f && v < 0.60f ? 1.0f : 0.0f;
-			float body  = std::fmax( head, torso );
+			float body  = frame < options.emptyFrames ? 0.0f : std::fmax( head, torso );
+			if( options.greenScreen )
+			{
+				float uneven = 0.9f + 0.1f * std::sin( u * 7.0f + v * 3.0f );
+				r = 0.08f * uneven, g = 0.62f * uneven, b = 0.22f * uneven;
+			}
 
 			// Rounded shading plus a dark print on the shirt, so tone-based looks have detail to work with.
 			float shade = 0.45f + 0.55f * std::fmax( 0.0f, 1.0f - std::fabs( dx ) / 0.13f );
@@ -136,7 +148,7 @@ static void DrawCameraFrame( std::vector< unsigned char >& rgba, int frame, bool
 			g += body * ( fg - g );
 			b += body * ( fb - b );
 
-			float beam = std::exp( -std::pow( ( u - 0.5f - 0.4f * std::sin( t * 0.7f ) ) * 9.0f + ( v - 1.0f ) * 2.0f, 2.0f ) );
+			float beam = options.greenScreen ? 0.0f : std::exp( -std::pow( ( u - 0.5f - 0.4f * std::sin( t * 0.7f ) ) * 9.0f + ( v - 1.0f ) * 2.0f, 2.0f ) );
 			r += 0.25f * beam;
 			g += 0.30f * beam;
 			b += 0.45f * beam;
@@ -201,16 +213,33 @@ static std::map< std::string, std::map< std::string, float > > Presets()
 							{ "Flames", 0.7f }, { "Depth", 0.8f } } },
 		{ "looks_depth", { { "_keyed", 1.0f }, { "Subject Source", 1.0f }, { "Look", 2.0f }, { "Depth", 1.0f } } },
 		{ "looks_dualtone", { { "Look", 9.0f }, { "Dual Tone", 1.0f }, { "Tracking", 2.0f }, { "Echo Level", 0.8f } } },
+		// IMAG Key (alone, and chained into IMAG Looks / IMAG Flame).
+		{ "key_difference", { { "_empty_frames", 40.0f } } },
+		{ "key_difference_matte", { { "_empty_frames", 40.0f }, { "View", 1.0f } } },
+		{ "key_chroma", { { "_greenscreen", 1.0f }, { "Key Mode", 1.0f }, { "Background", 2.0f } } },
+		{ "key_into_looks", { { "_empty_frames", 40.0f }, { "Subject Source", 1.0f }, { "Look", 2.0f }, { "Tracking", 1.0f },
+							  { "Echo Level", 0.8f }, { "Depth", 0.6f } } },
+		{ "key_into_flame", { { "_greenscreen", 1.0f }, { "Key Mode", 1.0f }, { "Subject Source", 1.0f } } },
 		{ "everything", { { "Red Delay", 0.3f }, { "Blue Delay", 0.1f }, { "Chroma Split", 0.3f }, { "Trails", 0.7f }, { "Trail Zoom", 0.58f },
 						  { "Trail Hue", 0.1f }, { "Glitch", 0.6f }, { "Sheen", 0.6f }, { "Static", 0.15f }, { "Scanlines", 0.3f } } },
 	};
 }
 
+struct LoadedPlugin
+{
+	FF_Main_FuncPtr main  = nullptr;
+	FFInstanceID instance = nullptr;
+	std::map< std::string, FFUInt32 > params;
+	GLuint fbo = 0, texture = 0;// output target when another plugin follows
+};
+
+// Plugins are chained with '+': each one's output is the next one's input, like stacking effects on a clip.
+// Preset values go to every plugin in the chain that has a parameter of that name.
 int main( int argc, char** argv )
 {
 	if( argc < 4 )
 	{
-		std::fprintf( stderr, "usage: %s <plugin.so> <out_dir> <preset> [frames]\n", argv[ 0 ] );
+		std::fprintf( stderr, "usage: %s <plugin[+plugin...]> <out_dir> <preset> [frames]\n", argv[ 0 ] );
 		return 2;
 	}
 	std::string outDir = argv[ 2 ], preset = argv[ 3 ];
@@ -228,129 +257,167 @@ int main( int argc, char** argv )
 	}
 	std::printf( "GL: %s / %s\n", glGetString( GL_RENDERER ), glGetString( GL_VERSION ) );
 
-	FF_Main_FuncPtr plugMain = LoadPlugin( argv[ 1 ] );
-	if( !plugMain )
-		return 1;
+	std::vector< LoadedPlugin > chain;
+	std::string paths = argv[ 1 ];
+	for( size_t begin = 0; begin <= paths.size(); )
+	{
+		size_t end = paths.find( '+', begin );
+		if( end == std::string::npos )
+			end = paths.size();
+		LoadedPlugin plugin;
+		plugin.main = LoadPlugin( paths.substr( begin, end - begin ).c_str() );
+		if( !plugin.main )
+			return 1;
+		chain.push_back( plugin );
+		begin = end + 1;
+	}
+
 	FFMixed in;
-
-	in.UIntValue = 0;
-	if( plugMain( FF_INITIALISE_V2, in, nullptr ).UIntValue != FF_SUCCESS )
-		return 1;
-
 	FFGLViewportStruct viewport = { 0, 0, W, H };
-	in.PointerValue             = &viewport;
-	FFInstanceID instance       = plugMain( FF_INSTANTIATE_GL, in, nullptr ).PointerValue;
-	if( !instance )
+	for( LoadedPlugin& plugin : chain )
 	{
-		std::fprintf( stderr, "instantiate failed (shader compile?)\n" );
-		return 1;
+		in.UIntValue = 0;
+		if( plugin.main( FF_INITIALISE_V2, in, nullptr ).UIntValue != FF_SUCCESS )
+			return 1;
+		in.PointerValue = &viewport;
+		plugin.instance = plugin.main( FF_INSTANTIATE_GL, in, nullptr ).PointerValue;
+		if( !plugin.instance )
+		{
+			std::fprintf( stderr, "instantiate failed (shader compile?)\n" );
+			return 1;
+		}
+		in.UIntValue       = 0;
+		FFUInt32 numParams = plugin.main( FF_GET_NUM_PARAMETERS, in, nullptr ).UIntValue;
+		for( FFUInt32 i = 0; i < numParams; ++i )
+		{
+			in.UIntValue = i;
+			plugin.params[ (const char*)plugin.main( FF_GET_PARAMETER_NAME, in, nullptr ).PointerValue ] = i;
+		}
+		std::printf( "%u parameters\n", numParams );
 	}
 
-	std::map< std::string, FFUInt32 > paramIndex;
-	in.UIntValue          = 0;
-	FFUInt32 numParams    = plugMain( FF_GET_NUM_PARAMETERS, in, nullptr ).UIntValue;
-	for( FFUInt32 i = 0; i < numParams; ++i )
-	{
-		in.UIntValue = i;
-		paramIndex[ (const char*)plugMain( FF_GET_PARAMETER_NAME, in, nullptr ).PointerValue ] = i;
-	}
-	std::printf( "%u parameters\n", numParams );
-	bool keyed = false;
+	CameraOptions camera;
 	for( auto& kv : presets[ preset ] )
 	{
 		if( kv.first == "_keyed" )
+			camera.keyed = kv.second > 0.5f;
+		else if( kv.first == "_greenscreen" )
+			camera.greenScreen = kv.second > 0.5f;
+		else if( kv.first == "_empty_frames" )
+			camera.emptyFrames = (int)kv.second;
+		else
 		{
-			keyed = kv.second > 0.5f;
-			continue;
+			bool found = false;
+			for( LoadedPlugin& plugin : chain )
+			{
+				if( !plugin.params.count( kv.first ) )
+					continue;
+				SetParameterStruct set;
+				set.ParameterNumber = plugin.params[ kv.first ];
+				std::memcpy( &set.NewParameterValue.UIntValue, &kv.second, sizeof( float ) );
+				in.PointerValue = &set;
+				plugin.main( FF_SET_PARAMETER, in, plugin.instance );
+				found = true;
+			}
+			if( !found )
+			{
+				std::fprintf( stderr, "no plugin has parameter '%s'\n", kv.first.c_str() );
+				return 1;
+			}
 		}
-		if( !paramIndex.count( kv.first ) )
-		{
-			std::fprintf( stderr, "plugin has no parameter '%s'\n", kv.first.c_str() );
-			return 1;
-		}
-		SetParameterStruct set;
-		set.ParameterNumber = paramIndex[ kv.first ];
-		std::memcpy( &set.NewParameterValue.UIntValue, &kv.second, sizeof( float ) );
-		in.PointerValue = &set;
-		plugMain( FF_SET_PARAMETER, in, instance );
 	}
 
-	GLuint inputTex, outputTex, hostFBO;
+	auto makeTarget = []( GLuint& fbo, GLuint& texture ) {
+		glGenTextures( 1, &texture );
+		glBindTexture( GL_TEXTURE_2D, texture );
+		glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, W, H, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr );
+		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+		glBindTexture( GL_TEXTURE_2D, 0 );
+		glGenFramebuffers( 1, &fbo );
+		glBindFramebuffer( GL_FRAMEBUFFER, fbo );
+		glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0 );
+	};
+	GLuint inputTex;
 	glGenTextures( 1, &inputTex );
 	glBindTexture( GL_TEXTURE_2D, inputTex );
 	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, W, H, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr );
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-	glGenTextures( 1, &outputTex );
-	glBindTexture( GL_TEXTURE_2D, outputTex );
-	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, W, H, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr );
 	glBindTexture( GL_TEXTURE_2D, 0 );
-	glGenFramebuffers( 1, &hostFBO );
-	glBindFramebuffer( GL_FRAMEBUFFER, hostFBO );
-	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outputTex, 0 );
+	for( LoadedPlugin& plugin : chain )
+		makeTarget( plugin.fbo, plugin.texture );
 
-	FFGLTextureStruct inputStruct = { W, H, W, H, inputTex };
-	FFGLTextureStruct* inputs[]   = { &inputStruct };
-	ProcessOpenGLStruct process   = { 1, inputs, hostFBO };
 	std::vector< unsigned char > pixels( W * H * 4 );
-	const float bpm               = 120.0f;
-	int failures                  = 0;
+	const float bpm = 120.0f;
+	int failures    = 0;
 
 	for( int frame = 0; frame < frames; ++frame )
 	{
-		DrawCameraFrame( pixels, frame, keyed );
+		DrawCameraFrame( pixels, frame, camera );
 		glBindTexture( GL_TEXTURE_2D, inputTex );
 		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data() );
 		glBindTexture( GL_TEXTURE_2D, 0 );
 
-		double seconds        = frame / 60.0;
-		in.PointerValue       = &seconds;
-		plugMain( FF_SET_TIME, in, instance );
+		double seconds         = frame / 60.0;
 		SetBeatinfoStruct beat = { bpm, (float)std::fmod( seconds * bpm / 60.0 / 4.0, 1.0 ) };
-		in.PointerValue        = &beat;
-		plugMain( FF_SET_BEATINFO, in, instance );
-
-		glBindFramebuffer( GL_FRAMEBUFFER, hostFBO );
-		glViewport( 0, 0, W, H );
-		glClearColor( 0, 0, 0, 0 );
-		glClear( GL_COLOR_BUFFER_BIT );
-		in.PointerValue = &process;
-		if( plugMain( FF_PROCESS_OPENGL, in, instance ).UIntValue != FF_SUCCESS )
+		GLuint source          = inputTex;
+		for( LoadedPlugin& plugin : chain )
 		{
-			std::fprintf( stderr, "frame %d: ProcessOpenGL failed\n", frame );
-			return 1;
-		}
+			in.PointerValue = &seconds;
+			plugin.main( FF_SET_TIME, in, plugin.instance );
+			in.PointerValue = &beat;
+			plugin.main( FF_SET_BEATINFO, in, plugin.instance );
 
-		// FFGL contract: the plugin must hand the context back in its default state.
-		GLint program, activeUnit, drawFBO, boundTex;
-		glGetIntegerv( GL_CURRENT_PROGRAM, &program );
-		glGetIntegerv( GL_ACTIVE_TEXTURE, &activeUnit );
-		glGetIntegerv( GL_DRAW_FRAMEBUFFER_BINDING, &drawFBO );
-		glGetIntegerv( GL_TEXTURE_BINDING_2D, &boundTex );
-		GLenum err = glGetError();
-		if( err != GL_NO_ERROR || program != 0 || activeUnit != GL_TEXTURE0 || drawFBO != (GLint)hostFBO || boundTex != 0 )
-		{
-			std::fprintf( stderr, "frame %d: GL error 0x%x program %d unit 0x%x fbo %d tex %d\n", frame, err, program, activeUnit, drawFBO, boundTex );
-			++failures;
+			FFGLTextureStruct inputStruct = { W, H, W, H, source };
+			FFGLTextureStruct* inputs[]   = { &inputStruct };
+			ProcessOpenGLStruct process   = { 1, inputs, plugin.fbo };
+			glBindFramebuffer( GL_FRAMEBUFFER, plugin.fbo );
+			glViewport( 0, 0, W, H );
+			glClearColor( 0, 0, 0, 0 );
+			glClear( GL_COLOR_BUFFER_BIT );
+			in.PointerValue = &process;
+			if( plugin.main( FF_PROCESS_OPENGL, in, plugin.instance ).UIntValue != FF_SUCCESS )
+			{
+				std::fprintf( stderr, "frame %d: ProcessOpenGL failed\n", frame );
+				return 1;
+			}
+
+			// FFGL contract: the plugin must hand the context back in its default state.
+			GLint program, activeUnit, drawFBO, boundTex;
+			glGetIntegerv( GL_CURRENT_PROGRAM, &program );
+			glGetIntegerv( GL_ACTIVE_TEXTURE, &activeUnit );
+			glGetIntegerv( GL_DRAW_FRAMEBUFFER_BINDING, &drawFBO );
+			glGetIntegerv( GL_TEXTURE_BINDING_2D, &boundTex );
+			GLenum err = glGetError();
+			if( err != GL_NO_ERROR || program != 0 || activeUnit != GL_TEXTURE0 || drawFBO != (GLint)plugin.fbo || boundTex != 0 )
+			{
+				std::fprintf( stderr, "frame %d: GL error 0x%x program %d unit 0x%x fbo %d tex %d\n", frame, err, program, activeUnit, drawFBO, boundTex );
+				++failures;
+			}
+			source = plugin.texture;
 		}
 
 		if( frame == frames - 1 || frame == frames / 2 || frame == frames / 2 + 7 )
 		{
+			glBindFramebuffer( GL_FRAMEBUFFER, chain.back().fbo );
 			glReadPixels( 0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data() );
 			WritePPM( outDir + "/" + preset + "_" + std::to_string( frame ) + ".ppm", pixels );
 		}
 	}
 
-	if( paramIndex.count( "Status" ) )
+	for( LoadedPlugin& plugin : chain )
 	{
-		in.UIntValue       = paramIndex[ "Status" ];
-		const char* status = (const char*)plugMain( FF_GET_PARAMETER, in, instance ).PointerValue;
-		std::printf( "Status: %s\n", status ? status : "(none)" );
+		if( plugin.params.count( "Status" ) )
+		{
+			in.UIntValue       = plugin.params[ "Status" ];
+			const char* status = (const char*)plugin.main( FF_GET_PARAMETER, in, plugin.instance ).PointerValue;
+			std::printf( "Status: %s\n", status ? status : "(none)" );
+		}
+		plugin.main( FF_DEINSTANTIATE_GL, in, plugin.instance );
+		in.UIntValue = 0;
+		plugin.main( FF_DEINITIALISE, in, nullptr );
 	}
-
-	plugMain( FF_DEINSTANTIATE_GL, in, instance );
-	in.UIntValue = 0;
-	plugMain( FF_DEINITIALISE, in, nullptr );
 	std::printf( "%s: %d frames, %d state/GL failures\n", preset.c_str(), frames, failures );
 	return failures == 0 ? 0 : 1;
 }

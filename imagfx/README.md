@@ -1,19 +1,48 @@
 # IMAG FX
 
-Three camera-look effect plugins for Resolume Arena/Avenue (FFGL 2.x, C++/OpenGL/GLSL). Each is a separate file and appears separately in Arena's Effects browser.
+Four camera effect plugins for Resolume Arena/Avenue (FFGL 2.x, C++/OpenGL/GLSL). Each is a separate file and appears separately in Arena's Effects browser.
 
 | Plugin | File | What it does |
 |---|---|---|
+| **IMAG Key** | `ImagKey.dll` / `ImagKey.bundle` | Keys the performer out of the camera (difference, chroma or luma key) so the other effects can use **Keyed alpha** |
 | **IMAG FX** | `ImagFX.dll` / `ImagFX.bundle` | Glitch looks: RGB time delay, feedback trails, noise warp, beat-synced slice glitch, sheen sweep, scanlines, static |
 | **IMAG Flame** | `ImagFlame.dll` / `ImagFlame.bundle` | Monochrome camera with flame trails rising off the subject, heat-haze distortion, spectral dispersion and subject tracking with small tracking squares |
 | **IMAG Looks** | `ImagLooks.dll` / `ImagLooks.bundle` | Effects panel: one dropdown of camera looks (night vision, fire map, gold edge, analog TV, glitter, comic, halftone, paper texture, animated cartoon, ...) plus overlays for every look: tracking squares, coloured echoes, ASCII, and distortion / dispersion / flames / depth / dual-tone levels with custom colours |
 
 - `src/`: the plugins (`ImagFX.cpp`, `ImagFlame.cpp`, `ImagLooks.cpp`) and their shaders
 - `test/`: a headless FFGL host for rendering and checking the plugins without Resolume (Linux, or Windows/Wine)
-- `scripts/build-windows-mingw.sh`: cross-compiles all three DLLs from Linux
+- `scripts/build-windows-mingw.sh`: cross-compiles all four DLLs from Linux
 - Ready-made Windows and macOS builds: GitHub Actions (`.github/workflows/imagfx.yml`) attaches them to a release on every push
 - `docs/ANALYSIS.md`: product analysis, how the effects work, build/install instructions, roadmap
-- `docs/test-renders.png`, `docs/flame-renders.png`, `docs/looks-renders.png`, `docs/looks-overlays.png`: frames rendered by the test host
+- `docs/test-renders.png`, `docs/flame-renders.png`, `docs/looks-renders.png`, `docs/looks-overlays.png`, `docs/key-renders.png`: frames rendered by the test host
+
+## IMAG Key
+
+Put **IMAG Key first** on the camera clip, then IMAG Looks / IMAG Flame after it with **Subject Source → Keyed alpha**. Its output is the performer with a transparent background.
+
+### Setting up a key
+1. Choose **Key Mode**:
+   - **Difference (learn stage)**: for a fixed camera on any background. Clear the stage, press **Learn Background** (it averages one second), then bring the performer in. It also learns automatically from the first second after loading.
+   - **Chroma (green/blue screen)**: set **Key Colour** to roughly the screen colour (green or blue is enough; the exact shade doesn't matter).
+   - **Luma (bright subject)**: keeps bright areas; **Luma Invert** keeps dark ones.
+2. Set **View → Matte**: white is kept, black is removed. Raise **Threshold** until the background is fully black, then lower it until the performer is solid white. **Softness** widens the transition.
+3. Clean up with **Clean Specks** (removes noise dots), **Shrink / Grow** (centre is neutral), **Feather** (soft edges) and **Edge Smoothing** (reduces edge flicker over time). Use the **Crop** sliders to cut out areas that should never be keyed in, such as a lighting rig at the frame edge.
+4. **View → Overlay** shows the removed area tinted red over the camera. Switch back to **View → Output** for the show.
+
+| Control | What it does |
+|---|---|
+| Key Mode, Learn Background, Auto Update | Keyer, plate capture, and how fast the learned stage follows slow lighting changes |
+| Threshold, Softness | Where the key cuts, and how soft the cut is |
+| Ignore Shadows | Difference key: brightness changes alone (shadows, dimming) don't count as subject |
+| Key Colour, Spill Removal | Chroma key: screen colour, and removing its colour cast from the performer's edges |
+| Luma Invert | Luma key: keep dark instead of bright |
+| Clean Specks, Shrink / Grow, Feather, Edge Smoothing | Matte clean-up |
+| Crop Left / Right / Top / Bottom | Garbage matte |
+| View | Output / Matte / Overlay |
+| Background, Background Colour | Transparent (for chaining), black, or a colour |
+| Status | What the key is doing, e.g. "Background learned" |
+
+**Limits:** the difference key needs a camera that doesn't move or zoom after learning. It keeps anything that differs from the learned stage, so moving lights, video walls and haze also get keyed in. Crop them out, or use a green/blue screen where possible. For a moving camera, use a chroma or luma key, or an AI keyer upstream (NVIDIA Broadcast + Auto Mask). AI person segmentation inside the plugin is possible as a later step (ONNX Runtime), but it is a much larger build.
 
 ## IMAG Flame
 

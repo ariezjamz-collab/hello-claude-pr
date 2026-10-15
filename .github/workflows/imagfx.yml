@@ -37,7 +37,7 @@ jobs:
           cmake -S imagfx -B build -A x64 -DFFGL_SDK_DIR="$GITHUB_WORKSPACE/ffgl-sdk"
           cmake --build build --config Release
           mkdir -p dist
-          cp build/Release/ImagFX.dll build/Release/ImagFlame.dll build/Release/ImagLooks.dll dist/
+          cp build/Release/ImagFX.dll build/Release/ImagFlame.dll build/Release/ImagLooks.dll build/Release/ImagKey.dll dist/
 
       - name: Build (macOS, universal)
         if: matrix.name == 'macos'
@@ -45,7 +45,7 @@ jobs:
           cmake -S imagfx -B build -G Xcode -DFFGL_SDK_DIR="$GITHUB_WORKSPACE/ffgl-sdk"
           cmake --build build --config Release
           mkdir -p dist
-          for PLUGIN in ImagFX ImagFlame ImagLooks; do
+          for PLUGIN in ImagFX ImagFlame ImagLooks ImagKey; do
             codesign --force --deep --sign - build/Release/$PLUGIN.bundle
             lipo -info build/Release/$PLUGIN.bundle/Contents/MacOS/$PLUGIN
             cp -R build/Release/$PLUGIN.bundle dist/
@@ -56,9 +56,9 @@ jobs:
         run: |
           cd dist
           if [ "${{ matrix.name }}" = "windows" ]; then
-            7z a ../ImagFX-windows-x64.zip ImagFX.dll ImagFlame.dll ImagLooks.dll
+            7z a ../ImagFX-windows-x64.zip ImagFX.dll ImagFlame.dll ImagLooks.dll ImagKey.dll
           else
-            zip -r -y ../ImagFX-macos-universal.zip ImagFX.bundle ImagFlame.bundle ImagLooks.bundle
+            zip -r -y ../ImagFX-macos-universal.zip ImagFX.bundle ImagFlame.bundle ImagLooks.bundle ImagKey.bundle
           fi
 
       - uses: actions/upload-artifact@v4
@@ -83,5 +83,5 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "IMAG FX build ${GITHUB_RUN_NUMBER}" \
-            --notes "Three Resolume FFGL effects: IMAG FX (glitch looks), IMAG Flame (monochrome camera, tracked flame trails, heat haze, dispersion, tracking squares) and IMAG Looks (looks panel: night vision, fire map, gold edge, analog TV, glitter, comic, halftone, paper, animated cartoon). Windows: copy the three DLLs to Documents/Resolume Arena/Extra Effects. macOS: unzip, copy the three .bundle folders to Documents/Resolume Arena/Extra Effects, then run: xattr -dr com.apple.quarantine ImagFX.bundle ImagFlame.bundle ImagLooks.bundle. Restart Arena." \
+            --notes "Four Resolume FFGL effects: IMAG Key (keys the performer out of the camera), IMAG FX (glitch looks), IMAG Flame (monochrome camera, tracked flame trails, heat haze, dispersion, tracking squares) and IMAG Looks (looks panel with tracking, echoes, ASCII and effect levels). Windows: copy the four DLLs to Documents/Resolume Arena/Extra Effects. macOS: unzip, copy the four .bundle folders to Documents/Resolume Arena/Extra Effects, then run: xattr -dr com.apple.quarantine ImagKey.bundle ImagFX.bundle ImagFlame.bundle ImagLooks.bundle. Restart Arena." \
             --prerelease
