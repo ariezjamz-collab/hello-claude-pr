@@ -124,17 +124,18 @@ float dotScreen( vec2 pixel, float cellPx, float angle, float tone )
 	return 1.0 - smoothstep( radius - 0.06, radius + 0.06, length( f ) );
 }
 
-// Tone sampled at the centre of the rotated cell, so each dot has one size.
-float cellTone( vec2 pixel, float cellPx, float angle, int channel )
+// Ink coverage sampled at the centre of the rotated cell, so each dot has one size. `channel` picks the
+// colour to measure (e.g. vec3(1,0,0) for cyan ink, which absorbs red); vec3(0) measures black ink from
+// the levelled luma. Selecting with a weight vector, not col[i], keeps every driver's compiler happy.
+float cellTone( vec2 pixel, float cellPx, float angle, vec3 channel )
 {
 	float s = sin( angle ), c = cos( angle );
 	vec2 r      = mat2( c, -s, s, c ) * pixel / cellPx;
 	vec2 centre = ( floor( r ) + 0.5 ) * cellPx;
 	vec2 back   = mat2( c, s, -s, c ) * centre;
-	vec4 col    = src( back / Resolution );
-	if( channel < 0 )
-		return 1.0 - levels( luma( col.rgb ) );
-	return 1.0 - col[ channel ];
+	vec3 col    = src( back / Resolution ).rgb;
+	float black = 1.0 - levels( luma( col ) );
+	return dot( channel, vec3( 1.0 ) ) > 0.5 ? 1.0 - dot( col, channel ) : black;
 }
 
 float paperFibres( vec2 pixel, float seed )
@@ -199,10 +200,10 @@ void main()
 	else if( Look == HALFTONE )
 	{
 		// CMYK screen on paper, each ink at its classic angle.
-		float cyan    = dotScreen( pixel, detail, 0.2618, cellTone( pixel, detail, 0.2618, 0 ) );
-		float magenta = dotScreen( pixel, detail, 1.309, cellTone( pixel, detail, 1.309, 1 ) );
-		float yellow  = dotScreen( pixel, detail, 0.0, cellTone( pixel, detail, 0.0, 2 ) );
-		float black   = dotScreen( pixel, detail, 0.7854, cellTone( pixel, detail, 0.7854, -1 ) * 0.8 - 0.2 );
+		float cyan    = dotScreen( pixel, detail, 0.2618, cellTone( pixel, detail, 0.2618, vec3( 1.0, 0.0, 0.0 ) ) );
+		float magenta = dotScreen( pixel, detail, 1.309, cellTone( pixel, detail, 1.309, vec3( 0.0, 1.0, 0.0 ) ) );
+		float yellow  = dotScreen( pixel, detail, 0.0, cellTone( pixel, detail, 0.0, vec3( 0.0, 0.0, 1.0 ) ) );
+		float black   = dotScreen( pixel, detail, 0.7854, cellTone( pixel, detail, 0.7854, vec3( 0.0 ) ) * 0.8 - 0.2 );
 		vec3 paper    = vec3( 0.97, 0.95, 0.9 ) * mix( 1.0, paperFibres( pixel, 0.0 ), Texture );
 		col           = paper * ( 1.0 - vec3( cyan, magenta, yellow ) * 0.85 ) * ( 1.0 - black );
 		fillBackground = 1.0;
