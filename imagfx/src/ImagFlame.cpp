@@ -1,5 +1,6 @@
 #include "ImagFlame.h"
 #include "ImagFlameShaders.h"
+#include "PluginLog.h"
 #include <algorithm>
 #include <cmath>
 
@@ -127,17 +128,18 @@ ImagFlame::ImagFlame() :
 
 FFResult ImagFlame::InitGL( const FFGLViewportStruct* vp )
 {
-	if( !copyShader.Compile( kVertexShader, kCopyFragmentShader ) ||
-		!maskShader.Compile( kVertexShader, kMaskFragmentShader ) ||
-		!momentsShader.Compile( kVertexShader, kMomentsFragmentShader ) ||
-		!trackerShader.Compile( kVertexShader, kTrackerFragmentShader ) ||
-		!fireShader.Compile( kVertexShader, kFireFragmentShader ) ||
-		!compositeShader.Compile( kVertexShader, kFlameCompositeFragmentShader ) ||
+	if( !CompileOrLog( copyShader, kVertexShader, kCopyFragmentShader, "IMAG Flame", "copy" ) ||
+		!CompileOrLog( maskShader, kVertexShader, kMaskFragmentShader, "IMAG Flame", "mask" ) ||
+		!CompileOrLog( momentsShader, kVertexShader, kMomentsFragmentShader, "IMAG Flame", "moments" ) ||
+		!CompileOrLog( trackerShader, kVertexShader, kTrackerFragmentShader, "IMAG Flame", "tracker" ) ||
+		!CompileOrLog( fireShader, kVertexShader, kFireFragmentShader, "IMAG Flame", "fire" ) ||
+		!CompileOrLog( compositeShader, kVertexShader, kFlameCompositeFragmentShader, "IMAG Flame", "composite" ) ||
 		!quad.Initialise() )
 	{
 		DeInitGL();
 		return FF_FAIL;
 	}
+	FFGLLog::LogToHost( "IMAG Flame: ready" );
 	return CFFGLPlugin::InitGL( vp );
 }
 

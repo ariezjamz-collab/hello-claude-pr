@@ -1,5 +1,6 @@
 #include "ImagLooks.h"
 #include "ImagLooksShaders.h"
+#include "PluginLog.h"
 #include <algorithm>
 #include <cmath>
 
@@ -78,13 +79,14 @@ ImagLooks::ImagLooks() :
 
 FFResult ImagLooks::InitGL( const FFGLViewportStruct* vp )
 {
-	if( !copyShader.Compile( kVertexShader, kCopyFragmentShader ) ||
-		!looksShader.Compile( kVertexShader, kLooksFragmentShader ) ||
+	if( !CompileOrLog( copyShader, kVertexShader, kCopyFragmentShader, "IMAG Looks", "copy" ) ||
+		!CompileOrLog( looksShader, kVertexShader, kLooksFragmentShader, "IMAG Looks", "looks" ) ||
 		!quad.Initialise() )
 	{
 		DeInitGL();
 		return FF_FAIL;
 	}
+	FFGLLog::LogToHost( "IMAG Looks: ready" );
 	return CFFGLPlugin::InitGL( vp );
 }
 

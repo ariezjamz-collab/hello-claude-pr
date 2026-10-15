@@ -1,5 +1,6 @@
 #include "ImagFX.h"
 #include "ImagFXShaders.h"
+#include "PluginLog.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -104,14 +105,15 @@ ImagFX::ImagFX() :
 
 FFResult ImagFX::InitGL( const FFGLViewportStruct* vp )
 {
-	if( !copyShader.Compile( kVertexShader, kCopyFragmentShader ) ||
-		!trailShader.Compile( kVertexShader, kTrailFragmentShader ) ||
-		!finishShader.Compile( kVertexShader, kFinishFragmentShader ) ||
+	if( !CompileOrLog( copyShader, kVertexShader, kCopyFragmentShader, "IMAG FX", "copy" ) ||
+		!CompileOrLog( trailShader, kVertexShader, kTrailFragmentShader, "IMAG FX", "trail" ) ||
+		!CompileOrLog( finishShader, kVertexShader, kFinishFragmentShader, "IMAG FX", "finish" ) ||
 		!quad.Initialise() )
 	{
 		DeInitGL();
 		return FF_FAIL;
 	}
+	FFGLLog::LogToHost( "IMAG FX: ready" );
 	return CFFGLPlugin::InitGL( vp );
 }
 
