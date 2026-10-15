@@ -4,7 +4,7 @@
 #include <FFGLSDK.h>
 #include <ffglex/FFGLScopedFBOBinding.h>
 
-// IMAG Key: keys the performer out of a camera so the other IMAG effects can use "Keyed alpha".
+// IOKI Key: keys the performer out of a camera so the other IOKI effects can use "Keyed alpha".
 // Put it first on the camera clip; its output is the subject with a transparent background.
 //
 // Keyers: Difference (learned empty-stage plate; best for a fixed camera on any background), Chroma

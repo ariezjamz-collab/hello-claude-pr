@@ -1,7 +1,7 @@
 #pragma once
 #include "ShaderCommon.h"
 
-// Shaders for the tracking graphics and restyled feed shared by IMAG Blob and IMAG Face (TrackOverlay.h).
+// Shaders for the tracking graphics and restyled feed shared by IOKI Blob and IOKI Face (TrackOverlay.h).
 //
 // Written to be conservative for every driver: one small program per feed mode (FEED_MODE is #defined
 // when compiling), glyphs come from a texture rather than a lookup table, and nothing indexes a vector

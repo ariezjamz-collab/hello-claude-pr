@@ -1,7 +1,7 @@
 #pragma once
 #include "ShaderCommon.h"
 
-// IMAG Looks: one stylise pass over the copied input. Every look is built from the same blocks:
+// IOKI Looks: one stylise pass over the copied input. Every look is built from the same blocks:
 //   levels (black crush + contrast) -> gradient map or stylise -> edges / glow -> texture -> sparkles
 // Look indices must match kLookNames in ImagLooks.cpp.
 //

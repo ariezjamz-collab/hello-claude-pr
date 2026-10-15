@@ -3,7 +3,7 @@
 #include <FFGLSDK.h>
 #include <ffglex/FFGLScopedFBOBinding.h>
 
-// IMAG FX: a camera-look effect for Resolume (FFGL 2.x effect plugin).
+// IOKI FX: a camera-look effect for Resolume (FFGL 2.x effect plugin).
 //
 // Per frame it runs three full-screen passes:
 //   1. Copy    input            -> history ring buffer slot (last kMaxDelay frames)

@@ -1,5 +1,5 @@
 #pragma once
-// Shared by IMAG Blob and IMAG Face: steady multi-object tracking, the tracking graphics (squares, lines,
+// Shared by IOKI Blob and IOKI Face: steady multi-object tracking, the tracking graphics (squares, lines,
 // numbers, face landmarks) and the restyled feed underneath them (normal, mono, dual tone, ASCII,
 // halftone). Each plugin only supplies its own detections and maps its parameters onto the settings here.
 #include <algorithm>

@@ -1,6 +1,6 @@
 #pragma once
 
-// Shaders shared by every IMAG plugin.
+// Shaders shared by every IOKI plugin.
 
 // All passes share one vertex shader. `uv` is the normalised 0..1 coordinate used for our own
 // render targets; `inUV` is scaled by MaxUV because the host's input texture may be padded.

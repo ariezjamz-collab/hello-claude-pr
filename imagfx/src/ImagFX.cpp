@@ -45,14 +45,14 @@ static const float kPi                = 3.14159265f;
 static CFFGLPluginInfo PluginInfo(
 	PluginFactory< ImagFX >,
 	"IMFX",
-	"IMAG FX",
+	"IOKI FX",
 	2,
 	1,
 	1,
 	0,
 	FF_EFFECT,
 	"Camera look: RGB time delay, feedback trails, warp, glitch, sheen, static",
-	"IMAG FX prototype" );
+	"IOKI FX" );
 
 ImagFX::ImagFX() :
 	params( PID_COUNT, 0.0f )
@@ -109,15 +109,15 @@ ImagFX::ImagFX() :
 
 FFResult ImagFX::InitGL( const FFGLViewportStruct* vp )
 {
-	if( !CompileOrLog( copyShader, kVertexShader, kCopyFragmentShader, "IMAG FX", "copy" ) ||
-		!CompileOrLog( trailShader, kVertexShader, kTrailFragmentShader, "IMAG FX", "trail" ) ||
-		!CompileOrLog( finishShader, kVertexShader, kFinishFragmentShader, "IMAG FX", "finish" ) ||
+	if( !CompileOrLog( copyShader, kVertexShader, kCopyFragmentShader, "IOKI FX", "copy" ) ||
+		!CompileOrLog( trailShader, kVertexShader, kTrailFragmentShader, "IOKI FX", "trail" ) ||
+		!CompileOrLog( finishShader, kVertexShader, kFinishFragmentShader, "IOKI FX", "finish" ) ||
 		!quad.Initialise() )
 	{
 		DeInitGL();
 		return FF_FAIL;
 	}
-	FFGLLog::LogToHost( "IMAG FX: ready" );
+	FFGLLog::LogToHost( "IOKI FX: ready" );
 	return CFFGLPlugin::InitGL( vp );
 }
 

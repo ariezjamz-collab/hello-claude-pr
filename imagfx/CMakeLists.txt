@@ -41,7 +41,7 @@ function(add_imag_plugin target)
             BUNDLE TRUE
             BUNDLE_EXTENSION bundle
             MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Info.plist.in
-            MACOSX_BUNDLE_GUI_IDENTIFIER com.imagfx.${target}
+            MACOSX_BUNDLE_GUI_IDENTIFIER com.iokifx.${target}
             MACOSX_BUNDLE_BUNDLE_VERSION 0.2.0
             MACOSX_BUNDLE_SHORT_VERSION_STRING 0.2.0
             OSX_ARCHITECTURES "arm64;x86_64"  # Arena runs natively on Apple Silicon
@@ -77,21 +77,21 @@ set_source_files_properties(${FACEDETECT_SOURCES} PROPERTIES
 if(MSVC)
     set_source_files_properties(${FACEDETECT_SOURCES} PROPERTIES COMPILE_OPTIONS "/arch:AVX2;/W0")
 elseif(APPLE)
-    # Universal binary: AVX2 for the Intel slice; the Apple Silicon slice uses NEON (see the export shim).
-    set_source_files_properties(${FACEDETECT_SOURCES} PROPERTIES COMPILE_OPTIONS
-        "SHELL:-Xarch_x86_64 -mavx2;SHELL:-Xarch_x86_64 -mfma;-w")
+    # Universal binary: the Apple Silicon slice uses NEON (picked in the export shim). Xcode can't take
+    # per-architecture flags here, so the Intel slice runs the detector's plain C++ path (slower, any CPU).
+    set_source_files_properties(${FACEDETECT_SOURCES} PROPERTIES COMPILE_OPTIONS "-w")
 else()
     set_source_files_properties(${FACEDETECT_SOURCES} PROPERTIES COMPILE_OPTIONS "-mavx2;-mfma;-w")
 endif()
 
-add_imag_plugin(ImagFX src/ImagFX.cpp src/ImagFX.h src/PassThrough.h src/ImagFXShaders.h src/ShaderCommon.h src/PluginLog.h)
-add_imag_plugin(ImagFlame src/ImagFlame.cpp src/ImagFlame.h src/PassThrough.h src/ImagFlameShaders.h src/ShaderCommon.h src/PluginLog.h)
-add_imag_plugin(ImagBlob src/ImagBlob.cpp src/ImagBlob.h src/PassThrough.h src/TrackOverlay.h src/TrackOverlayShaders.h src/ColorUtil.h src/ShaderCommon.h src/PluginLog.h)
-add_imag_plugin(ImagFace src/ImagFace.cpp src/ImagFace.h src/FaceDetector.h src/TrackOverlay.h src/TrackOverlayShaders.h src/ColorUtil.h src/ShaderCommon.h src/PluginLog.h ${FACEDETECT_SOURCES})
+add_imag_plugin(IokiFX src/ImagFX.cpp src/ImagFX.h src/PassThrough.h src/ImagFXShaders.h src/ShaderCommon.h src/PluginLog.h)
+add_imag_plugin(IokiFlame src/ImagFlame.cpp src/ImagFlame.h src/PassThrough.h src/ImagFlameShaders.h src/ShaderCommon.h src/PluginLog.h)
+add_imag_plugin(IokiBlob src/ImagBlob.cpp src/ImagBlob.h src/PassThrough.h src/TrackOverlay.h src/TrackOverlayShaders.h src/ColorUtil.h src/ShaderCommon.h src/PluginLog.h)
+add_imag_plugin(IokiFace src/ImagFace.cpp src/ImagFace.h src/FaceDetector.h src/TrackOverlay.h src/TrackOverlayShaders.h src/ColorUtil.h src/ShaderCommon.h src/PluginLog.h ${FACEDETECT_SOURCES})
 find_package(Threads REQUIRED)
-target_link_libraries(ImagFace PRIVATE Threads::Threads)
-add_imag_plugin(ImagKey src/ImagKey.cpp src/ImagKey.h src/PassThrough.h src/ImagKeyShaders.h src/ShaderCommon.h src/PluginLog.h)
-add_imag_plugin(ImagLooks src/ImagLooks.cpp src/ImagLooks.h src/PassThrough.h src/ImagLooksShaders.h src/ShaderCommon.h src/PluginLog.h)
+target_link_libraries(IokiFace PRIVATE Threads::Threads)
+add_imag_plugin(IokiKey src/ImagKey.cpp src/ImagKey.h src/PassThrough.h src/ImagKeyShaders.h src/ShaderCommon.h src/PluginLog.h)
+add_imag_plugin(IokiLooks src/ImagLooks.cpp src/ImagLooks.h src/PassThrough.h src/ImagLooksShaders.h src/ShaderCommon.h src/PluginLog.h)
 
 option(IMAGFX_BUILD_TEST_HOST "Build the headless test host (Linux, EGL)" OFF)
 if(IMAGFX_BUILD_TEST_HOST)

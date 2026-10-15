@@ -1,6 +1,6 @@
 #include "ImagLooks.h"
 #include "ImagLooksShaders.h"
-#include "ImagFlameShaders.h"//Mask, moments and fire passes are shared with IMAG Flame.
+#include "ImagFlameShaders.h"//Mask, moments and fire passes are shared with IOKI Flame.
 #include "PluginLog.h"
 #include "PassThrough.h"
 #include "ColorUtil.h"
@@ -91,14 +91,14 @@ int OptionIndex( float value, int count )
 static CFFGLPluginInfo PluginInfo(
 	PluginFactory< ImagLooks >,
 	"IMLK",
-	"IMAG Looks",
+	"IOKI Looks",
 	2,
 	1,
 	1,
 	0,
 	FF_EFFECT,
 	"Camera looks panel with tracking squares, coloured echoes, ASCII, distortion, dispersion, flames, depth and dual tone",
-	"IMAG FX prototype" );
+	"IOKI FX" );
 
 ImagLooks::ImagLooks() :
 	lookShaders( kLookCount ),
@@ -215,19 +215,19 @@ ImagLooks::ImagLooks() :
 FFResult ImagLooks::InitGL( const FFGLViewportStruct* vp )
 {
 	std::string error;
-	if( !CompileOrLog( copyShader, kVertexShader, kCopyFragmentShader, "IMAG Looks", "copy", &error ) ||
-		!CompileOrLog( maskShader, kVertexShader, kMaskFragmentShader, "IMAG Looks", "mask", &error ) ||
-		!CompileOrLog( momentsShader, kVertexShader, kMomentsFragmentShader, "IMAG Looks", "moments", &error ) ||
-		!CompileOrLog( echoShader, kVertexShader, kEchoStoreFragmentShader, "IMAG Looks", "echo", &error ) ||
-		!CompileOrLog( fireShader, kVertexShader, kFireFragmentShader, "IMAG Looks", "fire", &error ) ||
-		!CompileOrLog( compositeShader, kVertexShader, kLooksCompositeFragmentShader, "IMAG Looks", "composite", &error ) ||
+	if( !CompileOrLog( copyShader, kVertexShader, kCopyFragmentShader, "IOKI Looks", "copy", &error ) ||
+		!CompileOrLog( maskShader, kVertexShader, kMaskFragmentShader, "IOKI Looks", "mask", &error ) ||
+		!CompileOrLog( momentsShader, kVertexShader, kMomentsFragmentShader, "IOKI Looks", "moments", &error ) ||
+		!CompileOrLog( echoShader, kVertexShader, kEchoStoreFragmentShader, "IOKI Looks", "echo", &error ) ||
+		!CompileOrLog( fireShader, kVertexShader, kFireFragmentShader, "IOKI Looks", "fire", &error ) ||
+		!CompileOrLog( compositeShader, kVertexShader, kLooksCompositeFragmentShader, "IOKI Looks", "composite", &error ) ||
 		!quad.Initialise() )
 	{
 		SetStatus( error.empty() ? "Could not create GPU resources" : error );
 		DeInitGL();
 		return FF_FAIL;
 	}
-	FFGLLog::LogToHost( "IMAG Looks: ready" );
+	FFGLLog::LogToHost( "IOKI Looks: ready" );
 	return CFFGLPlugin::InitGL( vp );
 }
 
@@ -364,7 +364,7 @@ FFGLShader* ImagLooks::LookShader( int look )
 	{
 		const std::string source = std::string( "#version 410 core\n#define LOOK_ID " ) + std::to_string( look ) + "\n" + kLooksFragmentBody;
 		const std::string pass   = std::string( "look '" ) + kLookNames[ look ] + "'";
-		bool ok = CompileOrLog( lookShaders[ look ], kVertexShader, source.c_str(), "IMAG Looks", pass.c_str(), &lookErrors[ look ] );
+		bool ok = CompileOrLog( lookShaders[ look ], kVertexShader, source.c_str(), "IOKI Looks", pass.c_str(), &lookErrors[ look ] );
 		lookStates[ look ] = ok ? ShaderState::Ready : ShaderState::Failed;
 	}
 	if( lookStates[ look ] == ShaderState::Failed )

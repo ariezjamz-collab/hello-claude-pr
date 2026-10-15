@@ -1,4 +1,4 @@
-name: IMAG FX plugin
+name: IOKI FX plugins
 
 on:
   push:
@@ -37,7 +37,7 @@ jobs:
           cmake -S imagfx -B build -A x64 -DFFGL_SDK_DIR="$GITHUB_WORKSPACE/ffgl-sdk"
           cmake --build build --config Release
           mkdir -p dist
-          cp build/Release/ImagFX.dll build/Release/ImagFlame.dll build/Release/ImagLooks.dll build/Release/ImagKey.dll build/Release/ImagBlob.dll build/Release/ImagFace.dll dist/
+          cp build/Release/IokiFX.dll build/Release/IokiFlame.dll build/Release/IokiLooks.dll build/Release/IokiKey.dll build/Release/IokiBlob.dll build/Release/IokiFace.dll dist/
           cp imagfx/third_party/facedetection/LICENSE-libfacedetection.txt dist/
 
       - name: Build (macOS, universal)
@@ -47,7 +47,7 @@ jobs:
           cmake --build build --config Release
           mkdir -p dist
           cp imagfx/third_party/facedetection/LICENSE-libfacedetection.txt dist/
-          for PLUGIN in ImagFX ImagFlame ImagLooks ImagKey ImagBlob ImagFace; do
+          for PLUGIN in IokiFX IokiFlame IokiLooks IokiKey IokiBlob IokiFace; do
             codesign --force --deep --sign - build/Release/$PLUGIN.bundle
             lipo -info build/Release/$PLUGIN.bundle/Contents/MacOS/$PLUGIN
             cp -R build/Release/$PLUGIN.bundle dist/
@@ -58,15 +58,15 @@ jobs:
         run: |
           cd dist
           if [ "${{ matrix.name }}" = "windows" ]; then
-            7z a ../ImagFX-windows-x64.zip ImagFX.dll ImagFlame.dll ImagLooks.dll ImagKey.dll ImagBlob.dll ImagFace.dll LICENSE-libfacedetection.txt
+            7z a ../IokiFX-windows-x64.zip IokiFX.dll IokiFlame.dll IokiLooks.dll IokiKey.dll IokiBlob.dll IokiFace.dll LICENSE-libfacedetection.txt
           else
-            zip -r -y ../ImagFX-macos-universal.zip ImagFX.bundle ImagFlame.bundle ImagLooks.bundle ImagKey.bundle ImagBlob.bundle ImagFace.bundle LICENSE-libfacedetection.txt
+            zip -r -y ../IokiFX-macos-universal.zip IokiFX.bundle IokiFlame.bundle IokiLooks.bundle IokiKey.bundle IokiBlob.bundle IokiFace.bundle LICENSE-libfacedetection.txt
           fi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ImagFX-${{ matrix.name }}
-          path: ImagFX-*.zip
+          name: IokiFX-${{ matrix.name }}
+          path: IokiFX-*.zip
 
   release:
     needs: build
@@ -80,10 +80,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="imagfx-build-${GITHUB_RUN_NUMBER}"
+          TAG="iokifx-build-${GITHUB_RUN_NUMBER}"
           gh release create "$TAG" dist/*.zip \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "IMAG FX build ${GITHUB_RUN_NUMBER}" \
-            --notes "Six Resolume FFGL effects, each with an Effect On toggle: IMAG Face (multi-face tracking with boxes, lines, numbers and landmarks; needs a CPU with AVX2 on Windows), IMAG Blob (blob tracking with squares, lines and numbers), IMAG Key (keys the performer out of the camera), IMAG FX (glitch looks), IMAG Flame (monochrome camera, tracked flame trails, heat haze, dispersion, tracking squares) and IMAG Looks (looks panel with tracking, echoes, ASCII and effect levels). Windows: copy the six DLLs to Documents/Resolume Arena/Extra Effects. macOS: unzip, copy the six .bundle folders to Documents/Resolume Arena/Extra Effects, then run: xattr -dr com.apple.quarantine ImagFace.bundle ImagBlob.bundle ImagKey.bundle ImagFX.bundle ImagFlame.bundle ImagLooks.bundle. Restart Arena." \
+            --title "IOKI FX build ${GITHUB_RUN_NUMBER}" \
+            --notes "Six Resolume FFGL effects, each with an Effect On toggle: IOKI Face (multi-face tracking with boxes, lines, numbers and landmarks; needs a CPU with AVX2 on Windows), IOKI Blob (blob tracking with squares, lines and numbers), IOKI Key (keys the performer out of the camera), IOKI FX (glitch looks), IOKI Flame (monochrome camera, tracked flame trails, heat haze, dispersion, tracking squares) and IOKI Looks (looks panel with tracking, echoes, ASCII and effect levels). The plugins were renamed from IMAG to IOKI: delete the old Imag* files from Extra Effects first. Windows: copy the six DLLs to Documents/Resolume Arena/Extra Effects. macOS: unzip, copy the six .bundle folders to Documents/Resolume Arena/Extra Effects, then run: xattr -dr com.apple.quarantine IokiFace.bundle IokiBlob.bundle IokiKey.bundle IokiFX.bundle IokiFlame.bundle IokiLooks.bundle. Restart Arena." \
             --prerelease

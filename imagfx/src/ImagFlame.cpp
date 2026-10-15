@@ -98,14 +98,14 @@ int OptionIndex( float value, int count )
 static CFFGLPluginInfo PluginInfo(
 	PluginFactory< ImagFlame >,
 	"IMFL",
-	"IMAG Flame",
+	"IOKI Flame",
 	2,
 	1,
 	1,
 	0,
 	FF_EFFECT,
 	"Monochrome camera with tracked flame trails, heat-haze distortion and dispersion",
-	"IMAG FX prototype" );
+	"IOKI FX" );
 
 ImagFlame::ImagFlame() :
 	params( PID_COUNT, 0.0f )
@@ -133,18 +133,18 @@ ImagFlame::ImagFlame() :
 
 FFResult ImagFlame::InitGL( const FFGLViewportStruct* vp )
 {
-	if( !CompileOrLog( copyShader, kVertexShader, kCopyFragmentShader, "IMAG Flame", "copy" ) ||
-		!CompileOrLog( maskShader, kVertexShader, kMaskFragmentShader, "IMAG Flame", "mask" ) ||
-		!CompileOrLog( momentsShader, kVertexShader, kMomentsFragmentShader, "IMAG Flame", "moments" ) ||
-		!CompileOrLog( trackerShader, kVertexShader, kTrackerFragmentShader, "IMAG Flame", "tracker" ) ||
-		!CompileOrLog( fireShader, kVertexShader, kFireFragmentShader, "IMAG Flame", "fire" ) ||
-		!CompileOrLog( compositeShader, kVertexShader, kFlameCompositeFragmentShader, "IMAG Flame", "composite" ) ||
+	if( !CompileOrLog( copyShader, kVertexShader, kCopyFragmentShader, "IOKI Flame", "copy" ) ||
+		!CompileOrLog( maskShader, kVertexShader, kMaskFragmentShader, "IOKI Flame", "mask" ) ||
+		!CompileOrLog( momentsShader, kVertexShader, kMomentsFragmentShader, "IOKI Flame", "moments" ) ||
+		!CompileOrLog( trackerShader, kVertexShader, kTrackerFragmentShader, "IOKI Flame", "tracker" ) ||
+		!CompileOrLog( fireShader, kVertexShader, kFireFragmentShader, "IOKI Flame", "fire" ) ||
+		!CompileOrLog( compositeShader, kVertexShader, kFlameCompositeFragmentShader, "IOKI Flame", "composite" ) ||
 		!quad.Initialise() )
 	{
 		DeInitGL();
 		return FF_FAIL;
 	}
-	FFGLLog::LogToHost( "IMAG Flame: ready" );
+	FFGLLog::LogToHost( "IOKI Flame: ready" );
 	return CFFGLPlugin::InitGL( vp );
 }
 

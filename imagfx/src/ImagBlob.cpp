@@ -1,5 +1,5 @@
 #include "ImagBlob.h"
-#include "ImagFlameShaders.h"//Mask and moments passes are shared with IMAG Flame.
+#include "ImagFlameShaders.h"//Mask and moments passes are shared with IOKI Flame.
 #include "PluginLog.h"
 #include "ColorUtil.h"
 #include <algorithm>
@@ -77,14 +77,14 @@ int OptionIndex( float value, int count )
 static CFFGLPluginInfo PluginInfo(
 	PluginFactory< ImagBlob >,
 	"IMBL",
-	"IMAG Blob",
+	"IOKI Blob",
 	2,
 	1,
 	1,
 	0,
 	FF_EFFECT,
 	"Blob tracking: squares, connecting lines and numbers on moving subjects, over a normal, mono, dual tone, ASCII or halftone feed",
-	"IMAG FX prototype" );
+	"IOKI FX" );
 
 ImagBlob::ImagBlob() :
 	params( PID_COUNT, 0.0f ),
@@ -199,10 +199,10 @@ ImagBlob::ImagBlob() :
 FFResult ImagBlob::InitGL( const FFGLViewportStruct* vp )
 {
 	std::string error;
-	if( !CompileOrLog( copyShader, kVertexShader, kCopyFragmentShader, "IMAG Blob", "copy", &error ) ||
-		!CompileOrLog( maskShader, kVertexShader, kMaskFragmentShader, "IMAG Blob", "mask", &error ) ||
-		!CompileOrLog( momentsShader, kVertexShader, kMomentsFragmentShader, "IMAG Blob", "moments", &error ) ||
-		!overlay.Init( "IMAG Blob", &error ) ||
+	if( !CompileOrLog( copyShader, kVertexShader, kCopyFragmentShader, "IOKI Blob", "copy", &error ) ||
+		!CompileOrLog( maskShader, kVertexShader, kMaskFragmentShader, "IOKI Blob", "mask", &error ) ||
+		!CompileOrLog( momentsShader, kVertexShader, kMomentsFragmentShader, "IOKI Blob", "moments", &error ) ||
+		!overlay.Init( "IOKI Blob", &error ) ||
 		!quad.Initialise() )
 	{
 		SetStatus( error.empty() ? "Could not create GPU resources" : error );
@@ -210,7 +210,7 @@ FFResult ImagBlob::InitGL( const FFGLViewportStruct* vp )
 		return FF_FAIL;
 	}
 
-	FFGLLog::LogToHost( "IMAG Blob: ready" );
+	FFGLLog::LogToHost( "IOKI Blob: ready" );
 	return CFFGLPlugin::InitGL( vp );
 }
 

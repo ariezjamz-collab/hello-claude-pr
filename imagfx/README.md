@@ -1,27 +1,29 @@
-# IMAG FX
+# IOKI FX
 
 Six camera effect plugins for Resolume Arena/Avenue (FFGL 2.x, C++/OpenGL/GLSL). Each is a separate file and appears separately in Arena's Effects browser.
+
+The plugins were called IMAG up to build 12. If you installed those, delete the old `Imag*.dll` / `Imag*.bundle` files from Extra Effects before copying the IOKI ones. They share plugin IDs, so Arena should only see one copy of each.
 
 Every plugin has an **Effect On** toggle as its first control. Switched off, it passes the camera through untouched. When you switch it back on, its trails and history start fresh. Map it to a key or MIDI button to cut the effect in and out live.
 
 | Plugin | File | What it does |
 |---|---|---|
-| **IMAG Face** | `ImagFace.dll` / `ImagFace.bundle` | Multi-face tracking: a box on every face, connecting lines, numbers (or detection confidence) and optional landmark dots, over the same five feeds as IMAG Blob |
-| **IMAG Blob** | `ImagBlob.dll` / `ImagBlob.bundle` | Blob tracking: squares on moving subjects, connecting lines and numbers above each square, over a Normal / Monochrome / Dual Tone / ASCII / Halftone feed |
-| **IMAG Key** | `ImagKey.dll` / `ImagKey.bundle` | Keys the performer out of the camera (difference, chroma or luma key) so the other effects can use **Keyed alpha** |
-| **IMAG FX** | `ImagFX.dll` / `ImagFX.bundle` | Glitch looks: RGB time delay, feedback trails, noise warp, beat-synced slice glitch, sheen sweep, scanlines, static |
-| **IMAG Flame** | `ImagFlame.dll` / `ImagFlame.bundle` | Monochrome camera with flame trails rising off the subject, heat-haze distortion, spectral dispersion and subject tracking with small tracking squares |
-| **IMAG Looks** | `ImagLooks.dll` / `ImagLooks.bundle` | Effects panel: one dropdown of camera looks (night vision, fire map, gold edge, analog TV, glitter, comic, halftone, paper texture, animated cartoon, ...) plus overlays for every look: tracking squares, coloured echoes, ASCII, and distortion / dispersion / flames / depth / dual-tone levels with custom colours |
+| **IOKI Face** | `IokiFace.dll` / `IokiFace.bundle` | Multi-face tracking: a box on every face, connecting lines, numbers (or detection confidence) and optional landmark dots, over the same five feeds as IOKI Blob |
+| **IOKI Blob** | `IokiBlob.dll` / `IokiBlob.bundle` | Blob tracking: squares on moving subjects, connecting lines and numbers above each square, over a Normal / Monochrome / Dual Tone / ASCII / Halftone feed |
+| **IOKI Key** | `IokiKey.dll` / `IokiKey.bundle` | Keys the performer out of the camera (difference, chroma or luma key) so the other effects can use **Keyed alpha** |
+| **IOKI FX** | `IokiFX.dll` / `IokiFX.bundle` | Glitch looks: RGB time delay, feedback trails, noise warp, beat-synced slice glitch, sheen sweep, scanlines, static |
+| **IOKI Flame** | `IokiFlame.dll` / `IokiFlame.bundle` | Monochrome camera with flame trails rising off the subject, heat-haze distortion, spectral dispersion and subject tracking with small tracking squares |
+| **IOKI Looks** | `IokiLooks.dll` / `IokiLooks.bundle` | Effects panel: one dropdown of camera looks (night vision, fire map, gold edge, analog TV, glitter, comic, halftone, paper texture, animated cartoon, ...) plus overlays for every look: tracking squares, coloured echoes, ASCII, and distortion / dispersion / flames / depth / dual-tone levels with custom colours |
 
-- `src/`: the plugins and their shaders; `TrackOverlay.h` holds the tracking and graphics that IMAG Blob and IMAG Face share
-- `third_party/facedetection/`: build shim and licence for [libfacedetection](https://github.com/ShiqiYu/libfacedetection), the face detector in IMAG Face (BSD 3-Clause, Shiqi Yu; fetched at build time)
+- `src/`: the plugins and their shaders; `TrackOverlay.h` holds the tracking and graphics that IOKI Blob and IOKI Face share
+- `third_party/facedetection/`: build shim and licence for [libfacedetection](https://github.com/ShiqiYu/libfacedetection), the face detector in IOKI Face (BSD 3-Clause, Shiqi Yu; fetched at build time)
 - `test/`: a headless FFGL host for rendering and checking the plugins without Resolume (Linux, or Windows/Wine)
-- `scripts/build-windows-mingw.sh`: cross-compiles all six DLLs from Linux (IMAG Face needs `FACEDETECT_DIR`)
+- `scripts/build-windows-mingw.sh`: cross-compiles all six DLLs from Linux (IOKI Face needs `FACEDETECT_DIR`)
 - Ready-made Windows and macOS builds: GitHub Actions (`.github/workflows/imagfx.yml`) attaches them to a release on every push
 - `docs/ANALYSIS.md`: product analysis, how the effects work, build/install instructions, roadmap
 - `docs/test-renders.png`, `docs/flame-renders.png`, `docs/looks-renders.png`, `docs/looks-overlays.png`, `docs/key-renders.png`, `docs/blob-renders.png`, `docs/blob-tracking-strip.png`: frames rendered by the test host
 
-## IMAG Blob
+## IOKI Blob
 
 Live blob tracking in the classic "data tracking" style: steady, thin-outlined boxes on the subject, a decimal label inside each box (0.1429, 0.2857, …) and a chain of lines linking them. All of it is drawn over the camera feed, which you can restyle.
 
@@ -43,14 +45,14 @@ Squares, lines and digits are drawn as geometry, and digits and ASCII come from 
 **Tips:**
 - The defaults give the classic look: Brightness detection, about 8 large boxes, Decimal labels inside, and a Chain of lines.
 - Switch **Detect → Motion** to follow movement instead.
-- To track only the performer, put **IMAG Key** first and set **Detect → Keyed alpha**.
+- To track only the performer, put **IOKI Key** first and set **Detect → Keyed alpha**.
 - If boxes still feel jumpy, raise **Smoothing** and **Hold Time**.
 
-## IMAG Face
+## IOKI Face
 
-A multi-face tracker that works like IMAG Blob, but on faces. Every face gets a box that glides with it and keeps its label. Lines link the faces, and the feed underneath can be restyled.
+A multi-face tracker that works like IOKI Blob, but on faces. Every face gets a box that glides with it and keeps its label. Lines link the faces, and the feed underneath can be restyled.
 
-**How it works:** each frame is scaled down (Detect Size), read back and handed to a face detector running on its own CPU thread. The detector is libfacedetection, a small CNN that returns a box, a confidence and five landmarks (eyes, nose, mouth corners) per face. Rendering never waits for it: the boxes are drawn every frame from the latest results. Between results they ease toward the newest position, using the same tracking as IMAG Blob (stable labels, Hold Time, fade in and out).
+**How it works:** each frame is scaled down (Detect Size), read back and handed to a face detector running on its own CPU thread. The detector is libfacedetection, a small CNN that returns a box, a confidence and five landmarks (eyes, nose, mouth corners) per face. Rendering never waits for it: the boxes are drawn every frame from the latest results. Between results they ease toward the newest position, using the same tracking as IOKI Blob (stable labels, Hold Time, fade in and out).
 
 | Group | Controls |
 |---|---|
@@ -62,16 +64,16 @@ A multi-face tracker that works like IMAG Blob, but on faces. Every face gets a 
 
 **Status** shows how many faces are found, the detector size and how long a detection takes. Detection takes about 20 ms at 480 on a typical desktop CPU, so boxes update 30–50 times a second.
 
-**Requirements:** on Windows and Intel Macs the detector needs a CPU with AVX2 (Intel 2013+ / AMD 2015+). Without it, Status says so and only the feed is drawn. Apple Silicon Macs use NEON.
+**Requirements:** on Windows the detector needs a CPU with AVX2 (Intel 2013+ / AMD 2015+). Without it, Status says so and only the feed is drawn. Apple Silicon Macs use NEON. Intel Macs run a plain version that is about 3× slower, so use Detect Size 320 there.
 
 **Tips:**
 - Faces that are small or far away: set **Detect Size → 640**.
 - Boxes appearing on things that aren't faces: raise **Min Confidence**.
 - For a steadier look: raise **Smoothing**. For boxes that hold through a quick head turn: raise **Hold Time**.
 
-## IMAG Key
+## IOKI Key
 
-Put **IMAG Key first** on the camera clip, then IMAG Looks / IMAG Flame after it with **Subject Source → Keyed alpha**. Its output is the performer with a transparent background.
+Put **IOKI Key first** on the camera clip, then IOKI Looks / IOKI Flame after it with **Subject Source → Keyed alpha**. Its output is the performer with a transparent background.
 
 ### Setting up a key
 1. Choose **Key Mode**:
@@ -97,7 +99,7 @@ Put **IMAG Key first** on the camera clip, then IMAG Looks / IMAG Flame after it
 
 **Limits:** the difference key needs a camera that doesn't move or zoom after learning. It keeps anything that differs from the learned stage, so moving lights, video walls and haze also get keyed in. Crop them out, or use a green/blue screen where possible. For a moving camera, use a chroma or luma key, or an AI keyer upstream (NVIDIA Broadcast + Auto Mask). AI person segmentation inside the plugin is possible as a later step (ONNX Runtime), but it is a much larger build.
 
-## IMAG Flame
+## IOKI Flame
 
 ### How it works
 
@@ -138,7 +140,7 @@ Six GPU passes per frame, with no CPU readback:
 - For flames that keep burning on a still subject, key the camera (NVIDIA Broadcast background removal + Auto Mask) and choose **Keyed alpha**.
 - A moving camera makes the whole frame "move", so use **Keyed alpha** there too.
 
-## IMAG Looks
+## IOKI Looks
 
 Our own looks in the style of the reference reel. Every look follows the same recipe: crush the stage to black, turn the performer into high-contrast monochrome, recolour with a gradient map, then add the look's signature detail.
 
@@ -189,11 +191,11 @@ These sit in their own groups under the look controls, and stack in this order o
 
 Colour controls are hue / saturation / brightness, shown in Arena as a rainbow colour picker. The Status field reads "OK: <look>", or shows the graphics driver's error if a look can't run on your machine.
 
-**Tip:** for black backgrounds like the reel, key the camera (NVIDIA Broadcast + Auto Mask). The looks keep the transparency, so you can stack IMAG Looks after IMAG Flame or IMAG FX on the same clip.
+**Tip:** for black backgrounds like the reel, key the camera (NVIDIA Broadcast + Auto Mask). The looks keep the transparency, so you can stack IOKI Looks after IOKI Flame or IOKI FX on the same clip.
 
 ## Colour controls
 
-Every colour control in every plugin is **hue / saturation / brightness**, which Arena shows as a rainbow colour picker with saturation and brightness. This covers IMAG Looks (tracking squares, echo A/B, ASCII, dual tone), IMAG Blob and IMAG Face (squares/boxes, lines, numbers, feed colours) and IMAG Key (key colour, background colour). Plugins convert to RGB internally.
+Every colour control in every plugin is **hue / saturation / brightness**, which Arena shows as a rainbow colour picker with saturation and brightness. This covers IOKI Looks (tracking squares, echo A/B, ASCII, dual tone), IOKI Blob and IOKI Face (squares/boxes, lines, numbers, feed colours) and IOKI Key (key colour, background colour). Plugins convert to RGB internally.
 
 ## Build
 
@@ -204,4 +206,4 @@ cmake -S . -B build -A x64
 cmake --build build --config Release
 ```
 
-Copy the six `.dll` files (`ImagFX`, `ImagFlame`, `ImagLooks`, `ImagKey`, `ImagBlob`, `ImagFace`) from `build\Release\` to `Documents\Resolume Arena\Extra Effects\` and restart Arena. macOS and Linux steps are in `docs/ANALYSIS.md`.
+Copy the six `.dll` files (`IokiFX`, `IokiFlame`, `IokiLooks`, `IokiKey`, `IokiBlob`, `IokiFace`) from `build\Release\` to `Documents\Resolume Arena\Extra Effects\` and restart Arena. macOS and Linux steps are in `docs/ANALYSIS.md`.

@@ -76,14 +76,14 @@ int OptionIndex( float value, int count )
 static CFFGLPluginInfo PluginInfo(
 	PluginFactory< ImagFace >,
 	"IMFC",
-	"IMAG Face",
+	"IOKI Face",
 	2,
 	1,
 	1,
 	0,
 	FF_EFFECT,
 	"Multi-face tracking: boxes, connecting lines, numbers and landmarks on every face, over a normal, mono, dual tone, ASCII or halftone feed",
-	"IMAG FX prototype. Face detection: libfacedetection (BSD 3-Clause), Shiqi Yu" );
+	"IOKI FX. Face detection: libfacedetection (BSD 3-Clause), Shiqi Yu" );
 
 ImagFace::ImagFace() :
 	params( PID_COUNT, 0.0f ),
@@ -92,7 +92,7 @@ ImagFace::ImagFace() :
 	SetMinInputs( 1 );
 	SetMaxInputs( 1 );
 
-	// Defaults match IMAG Blob: steady thin white boxes, decimal labels inside them, one chain of lines.
+	// Defaults match IOKI Blob: steady thin white boxes, decimal labels inside them, one chain of lines.
 	params[ PID_ENABLED ]       = 1.0f;
 	params[ PID_DETECT_SIZE ]   = 1.0f;
 	params[ PID_CONFIDENCE ]    = 0.6f;
@@ -200,7 +200,7 @@ ImagFace::~ImagFace()
 FFResult ImagFace::InitGL( const FFGLViewportStruct* vp )
 {
 	std::string error;
-	if( !CompileOrLog( copyShader, kVertexShader, kCopyFragmentShader, "IMAG Face", "copy", &error ) || !overlay.Init( "IMAG Face", &error ) ||
+	if( !CompileOrLog( copyShader, kVertexShader, kCopyFragmentShader, "IOKI Face", "copy", &error ) || !overlay.Init( "IOKI Face", &error ) ||
 		!quad.Initialise() )
 	{
 		SetStatus( error.empty() ? "Could not create GPU resources" : error );
@@ -211,8 +211,8 @@ FFResult ImagFace::InitGL( const FFGLViewportStruct* vp )
 	if( detectorSupported )
 		detector.Start();
 	else
-		FFGLLog::LogToHost( "IMAG Face: this CPU has no AVX2, face detection is off" );
-	FFGLLog::LogToHost( "IMAG Face: ready" );
+		FFGLLog::LogToHost( "IOKI Face: this CPU has no AVX2, face detection is off" );
+	FFGLLog::LogToHost( "IOKI Face: ready" );
 	return CFFGLPlugin::InitGL( vp );
 }
 

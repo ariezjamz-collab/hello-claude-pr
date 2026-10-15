@@ -3,7 +3,7 @@
 #include <FFGLSDK.h>
 #include <ffglex/FFGLScopedFBOBinding.h>
 
-// IMAG Flame: monochrome camera with flame trails, heat-haze distortion, spectral dispersion and
+// IOKI Flame: monochrome camera with flame trails, heat-haze distortion, spectral dispersion and
 // GPU subject tracking (FFGL 2.x effect plugin).
 //
 // Per frame:

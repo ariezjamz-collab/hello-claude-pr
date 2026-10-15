@@ -19,14 +19,14 @@ So section 1 is **not** a frame-by-frame breakdown of the video. It describes th
 - **It is not a compiled plugin.** It's sold as "20 Camera Effects ready to go all inside of base Resolume" (Launch Week Edition: +5 bonus effects; listed at $80). The listing says it was made in Resolume Arena 7.20.1.
 - **Delivery format: a Resolume showfile (`.avc`).** The listing says the effects "have been designed as 'clips' to be layered on top of your camera". Install means opening the showfile and either opening it as a deck or copy-pasting the clips into your own composition.
 - **Volume 2** is a separate pack of 10 effects with variations (~19), described as more BPM-focused. It was made in Arena 7.23.2 with "no additional plug-ins required".
-- **Roadmap: "Version 2.0: Coming 2025 – Converted to wire patches."** Single effects are already sold as **Resolume Wire patches** (`.wired`, Arena 7.4+), e.g. *Red Delay* ($39, "built to enhance your IMAG looks"), *Sheen* and *Static*. A free one, *Color Bumper*, uses 12 blend modes.
+- **Roadmap: "Version 2.0: Coming 2025 – Converted to wire patches."** Single effects are already sold as **Resolume Wire patches** (`.wired`, Arena 7.4+), e.g. *Red Delay* ($39, "built to enhance your IOKI looks"), *Sheen* and *Static*. A free one, *Color Bumper*, uses 12 blend modes.
 - **The vendor's tips:** run the camera through **NVIDIA Broadcast** (background blur/removal) and put Resolume's **Auto Mask** on the source.
 
 ### What that tells us technically (high confidence)
 
 1. **No custom GPU code is involved in Vol. 1/2.** Every look is a stack of Resolume's built-in effects, and their parameters are animated by Resolume's BPM-synced parameter animation. The "plugin" is really a **preset library**.
 2. **The camera feed reaches the effect clips through routing.** A "clip layered on top of your camera" that processes the camera image most plausibly uses a **Layer Router** source pointed at the camera layer (or the camera input itself as the clip source). The effect chain runs on that copy, and the clip is composited over the original with a layer blend mode (Add / Screen / Lighten / Alpha). *(Inferred: this is the standard pattern for this kind of pack.)*
-3. **The NVIDIA Broadcast + Auto Mask tip shows the looks depend on alpha.** Background removal gives a performer-shaped alpha matte (Auto Mask turns the virtual camera's black background into transparency). Effects like a glow, an outline, a sheen sweep or trails then act on **the person only**, not the stage behind them. That one step is what separates "IMAG camera FX" from a generic full-frame filter.
+3. **The NVIDIA Broadcast + Auto Mask tip shows the looks depend on alpha.** Background removal gives a performer-shaped alpha matte (Auto Mask turns the virtual camera's black background into transparency). Effects like a glow, an outline, a sheen sweep or trails then act on **the person only**, not the stage behind them. That one step is what separates "IOKI camera FX" from a generic full-frame filter.
 4. **Moving to Wire** is the natural upgrade path. Wire is Resolume's node-based patcher, which turns a 6–10-effect clip stack into one effect with a curated set of exposed controls. It's the same idea we want, built in a node graph instead of C++.
 
 ### What each named effect is almost certainly doing (*Inferred*)
@@ -75,7 +75,7 @@ Why FFGL rather than Vulkan or DirectX: Resolume's effect plugin interface **is*
 
 ---
 
-## 4. Prototype: `IMAG FX` (FFGL effect, in `imagfx/`)
+## 4. Prototype: `IOKI FX` (FFGL effect, in `imagfx/`)
 
 ### Processing pipeline (three full-screen passes per frame)
 
@@ -133,27 +133,27 @@ All parameters can be MIDI/OSC-mapped and animated in Resolume like any built-in
 cd imagfx
 cmake -S . -B build -A x64
 cmake --build build --config Release
-copy build\Release\ImagFX.dll "%USERPROFILE%\Documents\Resolume Arena\Extra Effects\"
+copy build\Release\IokiFX.dll "%USERPROFILE%\Documents\Resolume Arena\Extra Effects\"
 ```
 **macOS (Xcode command-line tools):**
 ```sh
 cd imagfx
 cmake -S . -B build -G Xcode
 cmake --build build --config Release
-cp -R build/Release/ImagFX.bundle ~/Documents/Resolume\ Arena/Extra\ Effects/
+cp -R build/Release/IokiFX.bundle ~/Documents/Resolume\ Arena/Extra\ Effects/
 ```
-CMake fetches the FFGL SDK automatically, or you can pass `-DFFGL_SDK_DIR=/path/to/ffgl`. Arena 7 uses `Documents/Resolume Arena/Extra Effects` (the SDK readme gives the older `Documents/Resolume/Extra Effects`). You can also add any folder as an extra effects folder in Arena's Preferences. Restart Arena after copying. "IMAG FX" appears in the Effects browser; drop it on the camera clip or layer. On macOS an unsigned bundle may need `xattr -dr com.apple.quarantine ImagFX.bundle` (or proper codesigning before distribution).
+CMake fetches the FFGL SDK automatically, or you can pass `-DFFGL_SDK_DIR=/path/to/ffgl`. Arena 7 uses `Documents/Resolume Arena/Extra Effects` (the SDK readme gives the older `Documents/Resolume/Extra Effects`). You can also add any folder as an extra effects folder in Arena's Preferences. Restart Arena after copying. "IOKI FX" appears in the Effects browser; drop it on the camera clip or layer. On macOS an unsigned bundle may need `xattr -dr com.apple.quarantine IokiFX.bundle` (or proper codesigning before distribution).
 
 **Headless test (Linux):**
 ```sh
 cmake -S imagfx -B build -DIMAGFX_BUILD_TEST_HOST=ON && cmake --build build
-Xvfb :99 & DISPLAY=:99 build/test/headless_host build/ImagFX.so /tmp everything 120
+Xvfb :99 & DISPLAY=:99 build/test/headless_host build/IokiFX.so /tmp everything 120
 ```
-IMAG Face needs real faces: point `IMAG_TEST_IMAGE` at a binary `.ppm` photo with faces, and the test camera pans slowly across it. Add `IMAG_TEST_STILL=1` to hold the view still. Example: `IMAG_TEST_IMAGE=crowd.ppm build/test/headless_host build/ImagFace.so /tmp face_landmarks 120`. The `toggle` preset switches every plugin's Effect On off and on again, and checks that the output while off equals the input.
+IOKI Face needs real faces: point `IOKI_TEST_IMAGE` at a binary `.ppm` photo with faces, and the test camera pans slowly across it. Add `IOKI_TEST_STILL=1` to hold the view still. Example: `IOKI_TEST_IMAGE=crowd.ppm build/test/headless_host build/IokiFace.so /tmp face_landmarks 120`. The `toggle` preset switches every plugin's Effect On off and on again, and checks that the output while off equals the input.
 
 ### Testing it in Resolume
 1. Put a camera (or the NVIDIA Broadcast virtual camera + **Auto Mask**) on a layer.
-2. Add IMAG FX. Start with Red Delay ≈ 8 frames and Chroma ≈ 0.3, then layer on Trails / Sheen.
+2. Add IOKI FX. Start with Red Delay ≈ 8 frames and Chroma ≈ 0.3, then layer on Trails / Sheen.
 3. Toggle BPM Sync and tap tempo. Sheen and Glitch should lock to the beat.
 4. Check the per-effect GPU time in Arena's performance view at your show resolution.
 
@@ -186,7 +186,7 @@ Each phase leaves a shippable plugin, and each module can be developed and teste
 - **VRAM is the real cost:** the 31-frame RGBA8 history uses 31 × 8.3 MB ≈ **257 MB at 1080p** and ≈ **1 GB at 4K**, plus two RGBA16F feedback buffers (~33 MB at 1080p). Lazy allocation (phase 2) and a "Max Delay" setting keep this in check. If several instances need history, share it per camera via one instance, or route the camera once and stack effects after it.
 - Keep everything in **one plugin** rather than several chained plugins. Each extra Resolume effect adds a full-frame copy.
 - Avoid `glGetError`, readbacks and `glFinish` in the render path, and allocate nothing per frame (the prototype allocates only when resolution changes).
-- Run Arena's composition at the camera's native resolution and frame rate, and feed it a capture card with GPU-direct upload (e.g. Blackmagic/AJA at 1080p50/60). Most IMAG latency comes from the capture path, not shaders.
+- Run Arena's composition at the camera's native resolution and frame rate, and feed it a capture card with GPU-direct upload (e.g. Blackmagic/AJA at 1080p50/60). Most IOKI latency comes from the capture path, not shaders.
 - Test on the target GPU with Arena's per-effect timing. On NVIDIA laptops, force the discrete GPU for Arena.
 
 ---

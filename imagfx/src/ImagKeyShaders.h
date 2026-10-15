@@ -1,7 +1,7 @@
 #pragma once
 #include "ShaderCommon.h"
 
-// IMAG Key shader passes, in the order they run each frame:
+// IOKI Key shader passes, in the order they run each frame:
 //   plate update -> raw matte -> erode -> dilate -> feather + temporal smoothing -> output
 
 // Background plate: while learning, a running average of the frame (weight 1/n); afterwards it slowly

@@ -4,7 +4,7 @@
 #include <FFGLSDK.h>
 #include <ffglex/FFGLScopedFBOBinding.h>
 
-// IMAG Looks: an effects panel. One "Look" dropdown picks a camera look (night vision, fire map, gold
+// IOKI Looks: an effects panel. One "Look" dropdown picks a camera look (night vision, fire map, gold
 // edge, analog TV, glitter, comic, halftone, paper, animated cartoon, ...). On top of any look sits an
 // overlay stack with its own controls: subject tracking squares, coloured subject echoes (delay shift),
 // ASCII, and levels for distortion, dispersion, flames, depth and dual tone.

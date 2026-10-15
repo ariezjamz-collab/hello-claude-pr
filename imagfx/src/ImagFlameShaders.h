@@ -1,7 +1,7 @@
 #pragma once
 #include "ShaderCommon.h"
 
-// IMAG Flame shader passes, in the order they run each frame:
+// IOKI Flame shader passes, in the order they run each frame:
 //   mask -> moments -> tracker -> fire -> composite
 
 // Subject mask at simulation resolution. A blurred 3x3 gather of one of four subject signals, thresholded.

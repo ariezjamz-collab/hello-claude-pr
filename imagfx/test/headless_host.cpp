@@ -173,8 +173,8 @@ static void DrawCameraFrame( std::vector< unsigned char >& rgba, int frame, cons
 	}
 }
 
-// Optional real footage: IMAG_TEST_IMAGE=<binary .ppm> makes the camera a slow pan and zoom across that
-// picture instead of the drawn figure (used for IMAG Face, which needs real faces). IMAG_TEST_STILL=1 holds
+// Optional real footage: IOKI_TEST_IMAGE=<binary .ppm> makes the camera a slow pan and zoom across that
+// picture instead of the drawn figure (used for IOKI Face, which needs real faces). IOKI_TEST_STILL=1 holds
 // the view still.
 struct TestImage
 {
@@ -202,7 +202,7 @@ static bool LoadPPM( const char* path, TestImage& image )
 
 static void DrawImageFrame( std::vector< unsigned char >& rgba, int frame, const TestImage& image )
 {
-	const float t    = std::getenv( "IMAG_TEST_STILL" ) ? 0.0f : frame / 60.0f;
+	const float t    = std::getenv( "IOKI_TEST_STILL" ) ? 0.0f : frame / 60.0f;
 	const float zoom = 0.75f + 0.1f * std::sin( t * 0.9f );//share of the picture's width in view
 	const float viewW = image.width * zoom, viewH = viewW * H / W;
 	const float x0 = ( image.width - viewW ) * ( 0.5f + 0.5f * std::sin( t * 1.3f ) );
@@ -241,7 +241,7 @@ static std::map< std::string, std::map< std::string, float > > Presets()
 		{ "trails", { { "Red Delay", 0.0f }, { "Chroma Split", 0.0f }, { "Trails", 0.85f }, { "Trail Zoom", 0.62f }, { "Trail Hue", 0.15f } } },
 		{ "sheen_static", { { "Red Delay", 0.0f }, { "Sheen", 0.9f }, { "Sheen Width", 0.25f }, { "Static", 0.35f }, { "Scanlines", 0.5f } } },
 		{ "glitch_warp", { { "Glitch", 1.0f }, { "Warp", 0.6f }, { "Warp Scale", 0.4f }, { "Beat Rate", 2.0f } } },
-		// IMAG Flame. "_keyed" is not a plugin parameter: it switches the test camera to a transparent background.
+		// IOKI Flame. "_keyed" is not a plugin parameter: it switches the test camera to a transparent background.
 		{ "flame_motion", { { "Subject Source", 0.0f }, { "Flame Amount", 0.8f }, { "Burn Edges", 0.3f } } },
 		{ "flame_keyed", { { "_keyed", 1.0f }, { "Subject Source", 1.0f }, { "Burn Edges", 0.7f }, { "Tracker HUD", 1.0f } } },
 		{ "flame_disperse", { { "Subject Source", 0.0f }, { "Dispersion", 0.9f }, { "Disperse Mode", 1.0f }, { "Heat Haze", 0.9f },
@@ -250,27 +250,27 @@ static std::map< std::string, std::map< std::string, float > > Presets()
 							 { "Flame Amount", 0.4f } } },
 		{ "flame_blue_track", { { "Subject Source", 0.0f }, { "Flame Color", 1.0f }, { "Track Focus", 0.8f }, { "Tracker HUD", 1.0f },
 								{ "Beat Pulse", 0.7f }, { "Wind", 0.75f } } },
-		// IMAG Looks: one preset per look, by index in the Look dropdown.
+		// IOKI Looks: one preset per look, by index in the Look dropdown.
 		{ "look_0", { { "Look", 0.0f } } }, { "look_1", { { "Look", 1.0f } } }, { "look_2", { { "Look", 2.0f } } },
 		{ "look_3", { { "Look", 3.0f } } }, { "look_4", { { "Look", 4.0f } } }, { "look_5", { { "Look", 5.0f } } },
 		{ "look_6", { { "Look", 6.0f } } }, { "look_7", { { "Look", 7.0f } } }, { "look_8", { { "Look", 8.0f } } },
 		{ "look_9", { { "Look", 9.0f } } }, { "look_10", { { "Look", 10.0f } } }, { "look_11", { { "Look", 11.0f } } },
 		{ "look_12", { { "Look", 12.0f } } },
-		// IMAG Looks overlays.
+		// IOKI Looks overlays.
 		{ "looks_track_echo", { { "Look", 2.0f }, { "Tracking", 1.0f }, { "Echo Level", 0.9f }, { "Echo Copies", 2.0f }, { "Echo Delay", 0.5f } } },
 		{ "looks_ascii", { { "_keyed", 1.0f }, { "Subject Source", 1.0f }, { "Look", 4.0f }, { "ASCII", 1.0f }, { "ASCII Size", 0.15f } } },
 		{ "looks_levels", { { "_keyed", 1.0f }, { "Subject Source", 1.0f }, { "Look", 0.0f }, { "Distortion", 0.3f }, { "Dispersion", 0.6f },
 							{ "Flames", 0.7f }, { "Depth", 0.8f } } },
 		{ "looks_depth", { { "_keyed", 1.0f }, { "Subject Source", 1.0f }, { "Look", 2.0f }, { "Depth", 1.0f } } },
 		{ "looks_dualtone", { { "Look", 9.0f }, { "Dual Tone", 1.0f }, { "Tracking", 2.0f }, { "Echo Level", 0.8f } } },
-		// IMAG Key (alone, and chained into IMAG Looks / IMAG Flame).
+		// IOKI Key (alone, and chained into IOKI Looks / IOKI Flame).
 		{ "key_difference", { { "_empty_frames", 40.0f } } },
 		{ "key_difference_matte", { { "_empty_frames", 40.0f }, { "View", 1.0f } } },
 		{ "key_chroma", { { "_greenscreen", 1.0f }, { "Key Mode", 1.0f }, { "Background", 2.0f } } },
 		{ "key_into_looks", { { "_empty_frames", 40.0f }, { "Subject Source", 1.0f }, { "Look", 2.0f }, { "Tracking", 1.0f },
 							  { "Echo Level", 0.8f }, { "Depth", 0.6f } } },
 		{ "key_into_flame", { { "_greenscreen", 1.0f }, { "Key Mode", 1.0f }, { "Subject Source", 1.0f } } },
-		// IMAG Blob.
+		// IOKI Blob.
 		{ "blob_default", { { "Detect", 0.0f } } },
 		{ "blob_video_style", { { "_save_every", 6.0f } } },
 		{ "blob_motion_strip", { { "_save_every", 6.0f }, { "Detect", 0.0f } } },
@@ -279,7 +279,7 @@ static std::map< std::string, std::map< std::string, float > > Presets()
 		{ "blob_ascii", { { "Feed", 3.0f }, { "Lines", 2.0f }, { "Numbers", 3.0f } } },
 		{ "blob_halftone", { { "Feed", 4.0f }, { "Number Size", 0.6f }, { "Square Size", 0.8f } } },
 		{ "blob_keyed", { { "_empty_frames", 40.0f }, { "Detect", 1.0f }, { "Grid", 1.0f } } },
-		// IMAG Face (run with IMAG_TEST_IMAGE pointing at a picture with faces).
+		// IOKI Face (run with IOKI_TEST_IMAGE pointing at a picture with faces).
 		{ "face_default", {} },
 		{ "face_landmarks", { { "Landmarks", 1.0f }, { "Numbers", 5.0f }, { "Box Style", 2.0f }, { "Lines", 3.0f } } },
 		{ "face_mono", { { "Feed", 1.0f }, { "Box Shape", 0.0f }, { "Lines", 2.0f } } },
@@ -422,7 +422,7 @@ int main( int argc, char** argv )
 
 	std::vector< unsigned char > pixels( W * H * 4 ), cameraPixels;
 	TestImage testImage;
-	if( const char* path = std::getenv( "IMAG_TEST_IMAGE" ) )
+	if( const char* path = std::getenv( "IOKI_TEST_IMAGE" ) )
 	{
 		if( !LoadPPM( path, testImage ) )
 		{

@@ -1,5 +1,5 @@
 #pragma once
-// Face detection for IMAG Face, on a worker thread so the render thread never waits for it.
+// Face detection for IOKI Face, on a worker thread so the render thread never waits for it.
 //
 // The detector is libfacedetection (https://github.com/ShiqiYu/libfacedetection, BSD 3-Clause), a small
 // CNN that finds faces of many sizes and returns a box, a confidence and five landmarks for each. Its
@@ -30,7 +30,9 @@ struct FaceResult
 // True when this CPU can run the detector as it was compiled.
 inline bool FaceDetectorSupported()
 {
-#if defined( __x86_64__ ) || defined( _M_X64 ) || defined( __i386__ ) || defined( _M_IX86 )
+#if defined( __APPLE__ )
+	return true;//macOS builds use NEON (Apple Silicon) or plain C++ (Intel), never AVX2
+#elif defined( __x86_64__ ) || defined( _M_X64 ) || defined( __i386__ ) || defined( _M_IX86 )
 #	if defined( _MSC_VER )
 	int info[ 4 ];
 	__cpuid( info, 0 );

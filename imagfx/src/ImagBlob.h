@@ -6,7 +6,7 @@
 #include <ffglex/FFGLScopedFBOBinding.h>
 #include "TrackOverlay.h"
 
-// IMAG Blob: live blob tracking. Finds the moving / keyed / bright regions of the camera and draws
+// IOKI Blob: live blob tracking. Finds the moving / keyed / bright regions of the camera and draws
 // tracking squares on them, connecting lines between them and a number above each square, over a
 // restyled feed (normal, monochrome, dual tone, ASCII or halftone).
 //
@@ -16,7 +16,7 @@
 //   3. Moments  mask         -> 256x256 moments, mipmapped; one small level is read back (a few KB)
 //   4. CPU      grid         -> blobs (cells or connected regions), handed to imag::Tracker so each keeps
 //                               its identity and number
-//   5. Feed + overlay        -> host (imag::OverlayRenderer, shared with IMAG Face)
+//   5. Feed + overlay        -> host (imag::OverlayRenderer, shared with IOKI Face)
 class ImagBlob : public CFFGLPlugin
 {
 public:

@@ -6,9 +6,9 @@
 #include "FaceDetector.h"
 #include "TrackOverlay.h"
 
-// IMAG Face: multi-face tracking. Finds every face in the camera and draws tracking boxes on them, lines
+// IOKI Face: multi-face tracking. Finds every face in the camera and draws tracking boxes on them, lines
 // between them, a number on each and optional landmark dots, over a restyled feed (normal, monochrome,
-// dual tone, ASCII or halftone). The tracking and graphics are IMAG Blob's (TrackOverlay.h).
+// dual tone, ASCII or halftone). The tracking and graphics are IOKI Blob's (TrackOverlay.h).
 //
 // Per frame:
 //   1. Copy      input           -> frame (full resolution)

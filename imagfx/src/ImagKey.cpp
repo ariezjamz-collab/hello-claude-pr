@@ -50,14 +50,14 @@ int OptionIndex( float value, int count )
 static CFFGLPluginInfo PluginInfo(
 	PluginFactory< ImagKey >,
 	"IMKY",
-	"IMAG Key",
+	"IOKI Key",
 	2,
 	1,
 	1,
 	0,
 	FF_EFFECT,
-	"Keys the performer out of the camera (difference, chroma or luma key) for the other IMAG effects",
-	"IMAG FX prototype" );
+	"Keys the performer out of the camera (difference, chroma or luma key) for the other IOKI effects",
+	"IOKI FX" );
 
 ImagKey::ImagKey() :
 	params( PID_COUNT, 0.0f ),
@@ -131,19 +131,19 @@ ImagKey::ImagKey() :
 FFResult ImagKey::InitGL( const FFGLViewportStruct* vp )
 {
 	std::string error;
-	if( !CompileOrLog( copyShader, kVertexShader, kCopyFragmentShader, "IMAG Key", "copy", &error ) ||
-		!CompileOrLog( plateShader, kVertexShader, kPlateFragmentShader, "IMAG Key", "plate", &error ) ||
-		!CompileOrLog( rawShader, kVertexShader, kRawMatteFragmentShader, "IMAG Key", "matte", &error ) ||
-		!CompileOrLog( morphShader, kVertexShader, kMorphFragmentShader, "IMAG Key", "clean", &error ) ||
-		!CompileOrLog( featherShader, kVertexShader, kFeatherFragmentShader, "IMAG Key", "feather", &error ) ||
-		!CompileOrLog( outputShader, kVertexShader, kKeyOutputFragmentShader, "IMAG Key", "output", &error ) ||
+	if( !CompileOrLog( copyShader, kVertexShader, kCopyFragmentShader, "IOKI Key", "copy", &error ) ||
+		!CompileOrLog( plateShader, kVertexShader, kPlateFragmentShader, "IOKI Key", "plate", &error ) ||
+		!CompileOrLog( rawShader, kVertexShader, kRawMatteFragmentShader, "IOKI Key", "matte", &error ) ||
+		!CompileOrLog( morphShader, kVertexShader, kMorphFragmentShader, "IOKI Key", "clean", &error ) ||
+		!CompileOrLog( featherShader, kVertexShader, kFeatherFragmentShader, "IOKI Key", "feather", &error ) ||
+		!CompileOrLog( outputShader, kVertexShader, kKeyOutputFragmentShader, "IOKI Key", "output", &error ) ||
 		!quad.Initialise() )
 	{
 		SetStatus( error.empty() ? "Could not create GPU resources" : error );
 		DeInitGL();
 		return FF_FAIL;
 	}
-	FFGLLog::LogToHost( "IMAG Key: ready" );
+	FFGLLog::LogToHost( "IOKI Key: ready" );
 	return CFFGLPlugin::InitGL( vp );
 }
 
