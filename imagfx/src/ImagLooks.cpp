@@ -2,6 +2,7 @@
 #include "ImagLooksShaders.h"
 #include "ImagFlameShaders.h"//Mask, moments and fire passes are shared with IMAG Flame.
 #include "PluginLog.h"
+#include "ColorUtil.h"
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -131,13 +132,12 @@ ImagLooks::ImagLooks() :
 		{ PID_DUAL_LIGHT_R, 1.0f, 0.72f, 0.3f },  // amber
 	};
 	for( const auto& c : colours )
-		for( int i = 0; i < 3; ++i )
-			params[ (int)c[ 0 ] + i ] = c[ i + 1 ];
+		RgbToHsb( &c[ 1 ], &params[ (int)c[ 0 ] ] );//colour controls are hue / saturation / brightness
 
 	auto addColour = [ & ]( FFUInt32 first, const char* name, const char* group ) {
-		SetParamInfof( first, name, FF_TYPE_RED );
-		SetParamInfof( first + 1, ( std::string( name ) + "_Green" ).c_str(), FF_TYPE_GREEN );
-		SetParamInfof( first + 2, ( std::string( name ) + "_Blue" ).c_str(), FF_TYPE_BLUE );
+		SetParamInfof( first, name, FF_TYPE_HUE );
+		SetParamInfof( first + 1, ( std::string( name ) + "_Sat" ).c_str(), FF_TYPE_SATURATION );
+		SetParamInfof( first + 2, ( std::string( name ) + "_Bri" ).c_str(), FF_TYPE_BRIGHTNESS );
 		for( FFUInt32 i = 0; i < 3; ++i )
 			SetParamGroup( first + i, group );
 	};
@@ -567,6 +567,11 @@ FFResult ImagLooks::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 	}
 
 	// 7. Overlays and dry/wet, straight into the host framebuffer.
+	auto setColour = [ & ]( const char* name, FFUInt32 first ) {
+		float rgb[ 3 ];
+		HsbToRgb( &params[ first ], rgb );
+		compositeShader.Set( name, rgb[ 0 ], rgb[ 1 ], rgb[ 2 ] );
+	};
 	glViewport( currentViewport.x, currentViewport.y, currentViewport.width, currentViewport.height );
 	{
 		ScopedShaderBinding shaderBinding( compositeShader.GetGLID() );
@@ -599,20 +604,20 @@ FFResult ImagLooks::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 		compositeShader.Set( "Depth", params[ PID_DEPTH ] );
 		compositeShader.Set( "EchoLevel", echoOn ? params[ PID_ECHO ] : 0.0f );
 		compositeShader.Set( "EchoCount", echoCount );
-		compositeShader.Set( "EchoColorA", params[ PID_ECHO_A_R ], params[ PID_ECHO_A_G ], params[ PID_ECHO_A_B ] );
-		compositeShader.Set( "EchoColorB", params[ PID_ECHO_B_R ], params[ PID_ECHO_B_G ], params[ PID_ECHO_B_B ] );
+		setColour( "EchoColorA", PID_ECHO_A_R );
+		setColour( "EchoColorB", PID_ECHO_B_R );
 		compositeShader.Set( "Flames", flamesOn ? params[ PID_FLAMES ] : 0.0f );
 		compositeShader.Set( "Palette", OptionIndex( params[ PID_FLAME_COLOR ], 5 ) );
 		compositeShader.Set( "DualTone", params[ PID_DUAL ] );
-		compositeShader.Set( "DualDark", params[ PID_DUAL_DARK_R ], params[ PID_DUAL_DARK_G ], params[ PID_DUAL_DARK_B ] );
-		compositeShader.Set( "DualLight", params[ PID_DUAL_LIGHT_R ], params[ PID_DUAL_LIGHT_G ], params[ PID_DUAL_LIGHT_B ] );
+		setColour( "DualDark", PID_DUAL_DARK_R );
+		setColour( "DualLight", PID_DUAL_LIGHT_R );
 		compositeShader.Set( "AsciiArea", OptionIndex( params[ PID_ASCII ], 4 ) );
 		compositeShader.Set( "AsciiSize", 8.0f + params[ PID_ASCII_SIZE ] * 24.0f );
-		compositeShader.Set( "AsciiColor", params[ PID_ASCII_R ], params[ PID_ASCII_G ], params[ PID_ASCII_B ] );
+		setColour( "AsciiColor", PID_ASCII_R );
 		compositeShader.Set( "Squares", OptionIndex( params[ PID_SQUARES ], 3 ) );
 		compositeShader.Set( "GridLevel", 5 - OptionIndex( params[ PID_SQUARE_COUNT ], 3 ) );//8x8, 16x16 or 32x32 cells
 		compositeShader.Set( "SquareSize", 3.0f + params[ PID_SQUARE_SIZE ] * 14.0f );
-		compositeShader.Set( "SquareColor", params[ PID_SQUARE_R ], params[ PID_SQUARE_G ], params[ PID_SQUARE_B ] );
+		setColour( "SquareColor", PID_SQUARE_R );
 		quad.Draw();
 		unbindTextures( 5 + kMaxEchoes );
 	}

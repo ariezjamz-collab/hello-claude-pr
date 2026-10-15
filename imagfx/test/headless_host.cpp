@@ -114,6 +114,7 @@ struct CameraOptions
 	bool keyed       = false;// transparent background (premultiplied), as after background removal + Auto Mask
 	bool greenScreen = false;// performer in front of a slightly uneven green screen
 	int emptyFrames  = 0;    // the first frames show the empty stage, as when learning a background plate
+	int saveEvery    = 0;    // also save every Nth frame (for checking motion over time)
 };
 
 static void DrawCameraFrame( std::vector< unsigned char >& rgba, int frame, const CameraOptions& options )
@@ -222,6 +223,8 @@ static std::map< std::string, std::map< std::string, float > > Presets()
 		{ "key_into_flame", { { "_greenscreen", 1.0f }, { "Key Mode", 1.0f }, { "Subject Source", 1.0f } } },
 		// IMAG Blob.
 		{ "blob_default", { { "Detect", 0.0f } } },
+		{ "blob_video_style", { { "_save_every", 6.0f } } },
+		{ "blob_motion_strip", { { "_save_every", 6.0f }, { "Detect", 0.0f } } },
 		{ "blob_regions_mono", { { "Blob Mode", 1.0f }, { "Feed", 1.0f }, { "Lines", 2.0f }, { "Square Style", 2.0f }, { "Grid", 3.0f } } },
 		{ "blob_dualtone", { { "Feed", 2.0f }, { "Numbers", 2.0f }, { "Square Style", 1.0f }, { "Square Colour", 0.2f } } },
 		{ "blob_ascii", { { "Feed", 3.0f }, { "Lines", 2.0f }, { "Numbers", 3.0f } } },
@@ -312,6 +315,8 @@ int main( int argc, char** argv )
 			camera.greenScreen = kv.second > 0.5f;
 		else if( kv.first == "_empty_frames" )
 			camera.emptyFrames = (int)kv.second;
+		else if( kv.first == "_save_every" )
+			camera.saveEvery = (int)kv.second;
 		else
 		{
 			bool found = false;
@@ -407,7 +412,7 @@ int main( int argc, char** argv )
 			source = plugin.texture;
 		}
 
-		if( frame == frames - 1 || frame == frames / 2 || frame == frames / 2 + 7 )
+		if( frame == frames - 1 || frame == frames / 2 || frame == frames / 2 + 7 || ( camera.saveEvery > 0 && frame % camera.saveEvery == 0 ) )
 		{
 			glBindFramebuffer( GL_FRAMEBUFFER, chain.back().fbo );
 			glReadPixels( 0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data() );

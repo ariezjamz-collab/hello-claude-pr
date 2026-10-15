@@ -31,15 +31,22 @@ public:
 	FFResult SetTextParameter( unsigned int index, const char* value ) override;
 	char* GetTextParameter( unsigned int index ) override;
 
+	// A tracked blob. Tracks outlive single detections: they hold their place for a moment when a
+	// detection is missed and fade in and out, so the graphics glide instead of blinking.
 	struct Blob
 	{
 		float x = 0, y = 0;     // centre, 0..1 (y up)
+		float vx = 0, vy = 0;   // velocity, frame units per second, used to predict the next position
 		float w = 0, h = 0;     // extent, 0..1
 		float mass = 0;
-		int id = 0;
-		uint32_t number = 0;
-		float nextChange = 0.0f;// time when a random number next changes
-		bool matched = false;
+		int id    = 0;
+		int slot  = 0;           // small stable label index (1, 2, 3...), reused after a track ends
+		int age   = 0;           // frames this track has been detected
+		float missing = 0.0f;    // seconds since it was last detected
+		float alpha   = 0.0f;    // current visibility, 0..1
+		uint32_t number  = 0;
+		float nextChange = 0.0f; // time when a random number next changes
+		bool matched     = false;
 	};
 
 private:
@@ -83,6 +90,7 @@ private:
 	GLsizei maskHeight   = 0;
 
 	std::vector< float > gridData;
+	std::vector< float > smoothedGrid;//detection grid averaged over time, so blobs don't flicker
 	std::vector< Blob > blobs;
 	std::vector< std::pair< int, int > > links;
 	std::vector< float > vertices;

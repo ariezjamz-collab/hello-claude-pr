@@ -2,6 +2,7 @@
 #include "ImagBlobShaders.h"
 #include "ImagFlameShaders.h"//Mask and moments passes are shared with IMAG Flame.
 #include "PluginLog.h"
+#include "ColorUtil.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -22,9 +23,11 @@ enum ParamID : FFUInt32
 	PID_MAX_BLOBS,
 	PID_SPACING,
 	PID_SMOOTH,
+	PID_HOLD,
 	// Squares
 	PID_SQ_STYLE,
 	PID_SQ_SIZE,
+	PID_SIZE_VAR,
 	PID_SQ_THICK,
 	PID_SQ_OPACITY,
 	PID_SQ_R,
@@ -45,6 +48,7 @@ enum ParamID : FFUInt32
 	PID_NUMBER_RATE,
 	PID_NUMBERS_ON_BEAT,
 	PID_TEXT_SIZE,
+	PID_NUMBER_POS,
 	PID_TEXT_OPACITY,
 	PID_TEXT_R,
 	PID_TEXT_G,
@@ -71,8 +75,10 @@ const GLsizei kMomentsSize = 256;
 const float kMinCoverage   = 0.08f;//share of a grid cell the subject must fill to count
 const int kMaxLines        = 600;
 
-// 4x6 glyphs, top row first. Slots 0-9 are digits; 10-20 are ASCII shades from empty to dense.
-const char* kGlyphRows[ 21 ][ 6 ] = {
+// 4x6 glyphs, top row first. Slots 0-9 are digits, 10-20 ASCII shades from empty to dense, 21 a full stop.
+const int kGlyphCount = 22;
+const int kPeriodGlyph = 21;
+const char* kGlyphRows[ kGlyphCount ][ 6 ] = {
 	{ ".##.", "#..#", "#..#", "#..#", "#..#", ".##." },// 0
 	{ ".#..", "##..", ".#..", ".#..", ".#..", "###." },// 1
 	{ "###.", "...#", ".##.", "#...", "#...", "####" },// 2
@@ -94,9 +100,10 @@ const char* kGlyphRows[ 21 ][ 6 ] = {
 	{ ".#.#", "####", ".#.#", "####", ".#.#", "...." },
 	{ "##.#", "##.#", "..#.", ".#..", "#.##", "#.##" },
 	{ ".##.", "#..#", "#.##", "#.##", "#...", ".###" },
+	{ "....", "....", "....", "....", "....", ".#.." },// .
 };
 const int kAtlasSlot   = 5;//texels per glyph slot horizontally (4 + 1 gap)
-const int kAtlasWidth  = 21 * kAtlasSlot;
+const int kAtlasWidth  = kGlyphCount * kAtlasSlot;
 const int kAtlasHeight = 7;
 
 int OptionIndex( float value, int count )
@@ -127,24 +134,29 @@ ImagBlob::ImagBlob() :
 	SetMinInputs( 1 );
 	SetMaxInputs( 1 );
 
-	params[ PID_THRESHOLD ]    = 0.3f;
-	params[ PID_GRID ]         = 2.0f;
-	params[ PID_MAX_BLOBS ]    = 0.2f;
+	// Defaults follow the classic blob-tracking look: a handful of steady, large, thin-outlined squares,
+	// decimal labels inside them, and a single chain of lines.
+	params[ PID_SOURCE ]       = 2.0f;//Brightness: tracks lit areas, works on a static shot too
+	params[ PID_THRESHOLD ]    = 0.45f;
+	params[ PID_GRID ]         = 1.0f;
+	params[ PID_MAX_BLOBS ]    = 0.12f;
 	params[ PID_SPACING ]      = 0.35f;
-	params[ PID_SMOOTH ]       = 0.5f;
-	params[ PID_SQ_SIZE ]      = 0.4f;
-	params[ PID_SQ_THICK ]     = 0.2f;
-	params[ PID_SQ_OPACITY ]   = 1.0f;
+	params[ PID_SMOOTH ]       = 0.75f;
+	params[ PID_HOLD ]         = 0.3f;
+	params[ PID_SQ_SIZE ]      = 0.5f;
+	params[ PID_SIZE_VAR ]     = 0.0f;
+	params[ PID_SQ_THICK ]     = 0.0f;
+	params[ PID_SQ_OPACITY ]   = 0.85f;
 	params[ PID_LINES ]        = 1.0f;
 	params[ PID_LINK_COUNT ]   = 1.0f;
 	params[ PID_LINK_DIST ]    = 0.4f;
-	params[ PID_LINE_THICK ]   = 0.1f;
-	params[ PID_LINE_OPACITY ] = 0.7f;
+	params[ PID_LINE_THICK ]   = 0.0f;
+	params[ PID_LINE_OPACITY ] = 0.75f;
 	params[ PID_NUMBERS ]      = 1.0f;
 	params[ PID_DIGITS ]       = 2.0f;
-	params[ PID_NUMBER_RATE ]  = 0.3f;
-	params[ PID_TEXT_SIZE ]    = 0.3f;
-	params[ PID_TEXT_OPACITY ] = 1.0f;
+	params[ PID_NUMBER_RATE ]  = 0.15f;
+	params[ PID_TEXT_SIZE ]    = 0.12f;
+	params[ PID_TEXT_OPACITY ] = 0.9f;
 	params[ PID_FEED_MIX ]     = 1.0f;
 	params[ PID_CONTRAST ]     = 0.4f;
 	params[ PID_CELL ]         = 0.3f;
@@ -156,8 +168,7 @@ ImagBlob::ImagBlob() :
 		{ PID_LIGHT_R, 1.0f, 0.85f, 0.4f },
 	};
 	for( const auto& c : colours )
-		for( int i = 0; i < 3; ++i )
-			params[ (int)c[ 0 ] + i ] = c[ i + 1 ];
+		RgbToHsb( &c[ 1 ], &params[ (int)c[ 0 ] ] );//colour controls are hue / saturation / brightness
 
 	auto addOption = [ & ]( FFUInt32 id, const char* name, std::initializer_list< const char* > options ) {
 		SetOptionParamInfo( id, name, (unsigned int)options.size(), params[ id ] );
@@ -169,9 +180,9 @@ ImagBlob::ImagBlob() :
 		}
 	};
 	auto addColour = [ & ]( FFUInt32 first, const char* name ) {
-		SetParamInfof( first, name, FF_TYPE_RED );
-		SetParamInfof( first + 1, ( std::string( name ) + "_Green" ).c_str(), FF_TYPE_GREEN );
-		SetParamInfof( first + 2, ( std::string( name ) + "_Blue" ).c_str(), FF_TYPE_BLUE );
+		SetParamInfof( first, name, FF_TYPE_HUE );
+		SetParamInfof( first + 1, ( std::string( name ) + "_Sat" ).c_str(), FF_TYPE_SATURATION );
+		SetParamInfof( first + 2, ( std::string( name ) + "_Bri" ).c_str(), FF_TYPE_BRIGHTNESS );
 	};
 	auto group = [ & ]( FFUInt32 first, FFUInt32 last, const char* name ) {
 		for( FFUInt32 id = first; id <= last; ++id )
@@ -185,16 +196,18 @@ ImagBlob::ImagBlob() :
 	SetParamInfof( PID_MAX_BLOBS, "Max Blobs", FF_TYPE_STANDARD );
 	SetParamInfof( PID_SPACING, "Spacing", FF_TYPE_STANDARD );
 	SetParamInfof( PID_SMOOTH, "Smoothing", FF_TYPE_STANDARD );
-	group( PID_SOURCE, PID_SMOOTH, "Detection" );
+	SetParamInfof( PID_HOLD, "Hold Time", FF_TYPE_STANDARD );
+	group( PID_SOURCE, PID_HOLD, "Detection" );
 
 	addOption( PID_SQ_STYLE, "Square Style", { "Outline", "Filled", "Corners" } );
 	SetParamInfof( PID_SQ_SIZE, "Square Size", FF_TYPE_STANDARD );
+	SetParamInfof( PID_SIZE_VAR, "Size Variation", FF_TYPE_STANDARD );
 	SetParamInfof( PID_SQ_THICK, "Square Thickness", FF_TYPE_STANDARD );
 	SetParamInfof( PID_SQ_OPACITY, "Square Intensity", FF_TYPE_STANDARD );
 	addColour( PID_SQ_R, "Square Colour" );
 	group( PID_SQ_STYLE, PID_SQ_B, "Squares" );
 
-	addOption( PID_LINES, "Lines", { "Off", "Nearest", "Network" } );
+	addOption( PID_LINES, "Lines", { "Off", "Chain", "Nearest", "Network" } );
 	addOption( PID_LINK_COUNT, "Links Per Blob", { "1", "2", "3", "4" } );
 	SetParamInfof( PID_LINK_DIST, "Link Distance", FF_TYPE_STANDARD );
 	SetParamInfof( PID_LINE_THICK, "Line Thickness", FF_TYPE_STANDARD );
@@ -202,11 +215,12 @@ ImagBlob::ImagBlob() :
 	addColour( PID_LINE_R, "Line Colour" );
 	group( PID_LINES, PID_LINE_B, "Lines" );
 
-	addOption( PID_NUMBERS, "Numbers", { "Off", "Random", "Blob ID", "Coordinates" } );
+	addOption( PID_NUMBERS, "Numbers", { "Off", "Decimal", "Random", "Blob ID", "Coordinates" } );
 	addOption( PID_DIGITS, "Digits", { "2", "3", "4", "5", "6" } );
 	SetParamInfof( PID_NUMBER_RATE, "Number Speed", FF_TYPE_STANDARD );
 	SetParamInfo( PID_NUMBERS_ON_BEAT, "Numbers On Beat", FF_TYPE_BOOLEAN, false );
 	SetParamInfof( PID_TEXT_SIZE, "Number Size", FF_TYPE_STANDARD );
+	addOption( PID_NUMBER_POS, "Number Position", { "Inside top", "Above", "Centre" } );
 	SetParamInfof( PID_TEXT_OPACITY, "Number Intensity", FF_TYPE_STANDARD );
 	addColour( PID_TEXT_R, "Number Colour" );
 	group( PID_NUMBERS, PID_TEXT_B, "Numbers" );
@@ -237,7 +251,7 @@ FFResult ImagBlob::InitGL( const FFGLViewportStruct* vp )
 
 	// Glyph atlas: one byte per texel, glyph rows stored bottom-up so v grows upward like the screen.
 	std::vector< unsigned char > atlas( kAtlasWidth * kAtlasHeight, 0 );
-	for( int g = 0; g < 21; ++g )
+	for( int g = 0; g < kGlyphCount; ++g )
 		for( int row = 0; row < 6; ++row )
 			for( int col = 0; col < 4; ++col )
 				if( kGlyphRows[ g ][ row ][ col ] == '#' )
@@ -392,6 +406,13 @@ void ImagBlob::DetectBlobs( float dt )
 		Scoped2DTextureBinding binding( momentTextures[ 0 ] );
 		glGetTexImage( GL_TEXTURE_2D, level, GL_RGBA, GL_FLOAT, gridData.data() );
 	}
+	// Average the grid over time (Smoothing) so a pixel of noise can't make a blob appear for one frame.
+	if( smoothedGrid.size() != gridData.size() )
+		smoothedGrid = gridData;
+	const float keep = std::pow( params[ PID_SMOOTH ] * 0.6f, dt * 60.0f );
+	for( size_t i = 0; i < gridData.size(); ++i )
+		smoothedGrid[ i ] = smoothedGrid[ i ] * keep + gridData[ i ] * ( 1.0f - keep );
+	gridData = smoothedGrid;
 	auto massAt = [ & ]( int cx, int cy ) { return gridData[ ( cy * cells + cx ) * 4 + 2 ]; };
 
 	std::vector< Blob > found;
@@ -481,46 +502,93 @@ void ImagBlob::DetectBlobs( float dt )
 	}
 	found.swap( kept );
 
-	// Keep identities: each new blob takes over the nearest unclaimed blob from last frame, if close enough.
-	const float follow = 1.0f - params[ PID_SMOOTH ] * 0.9f;
-	const float rate   = 0.5f + params[ PID_NUMBER_RATE ] * params[ PID_NUMBER_RATE ] * 19.5f;//changes per second
-	for( Blob& old : blobs )
-		old.matched = false;
-	for( Blob& b : found )
+	// Tracking. Existing tracks claim the nearest detection first (oldest tracks first), glide toward it,
+	// and keep their ID, label slot and number. Missed tracks hold their place for Hold Time and fade
+	// out; new detections become tracks that fade in once they've been seen for a few frames.
+	const float follow  = 1.0f - std::pow( params[ PID_SMOOTH ] * 0.9f, dt * 60.0f );
+	const float rate    = 0.2f + params[ PID_NUMBER_RATE ] * params[ PID_NUMBER_RATE ] * 12.0f;//changes per second
+	const float hold    = params[ PID_HOLD ] * 2.0f;//seconds
+	const float fade    = std::min( dt * 6.0f, 1.0f );
+	const int showAfter = 3;//frames a track must be seen before it is drawn
+	std::sort( blobs.begin(), blobs.end(), []( const Blob& a, const Blob& b ) { return a.age > b.age; } );
+	std::vector< bool > claimed( found.size(), false );
+	for( Blob& track : blobs )
 	{
-		Blob* best     = nullptr;
-		float bestDist = 0.08f + 0.5f * std::max( b.w, b.h );
-		for( Blob& old : blobs )
+		// Match against where the track should be now, so fast movement doesn't lose it.
+		const float px = track.x + track.vx * dt, py = track.y + track.vy * dt;
+		track.matched  = false;
+		int best       = -1;
+		float bestDist = 0.08f + 0.8f * std::max( track.w, track.h );
+		for( size_t i = 0; i < found.size(); ++i )
 		{
-			if( old.matched )
+			if( claimed[ i ] )
 				continue;
-			const float d = std::hypot( ( b.x - old.x ) * aspect, b.y - old.y );
+			const float d = std::hypot( ( found[ i ].x - px ) * aspect, found[ i ].y - py );
 			if( d < bestDist )
 			{
 				bestDist = d;
-				best     = &old;
+				best     = (int)i;
 			}
 		}
-		if( best )
+		if( best >= 0 )
 		{
-			best->matched = true;
-			b.id          = best->id;
-			b.number      = best->number;
-			b.nextChange  = best->nextChange;
-			b.x           = best->x + ( b.x - best->x ) * follow;
-			b.y           = best->y + ( b.y - best->y ) * follow;
-			b.w           = best->w + ( b.w - best->w ) * follow;
-			b.h           = best->h + ( b.h - best->h ) * follow;
+			claimed[ best ] = true;
+			const Blob& f   = found[ best ];
+			const float nx  = px + ( f.x - px ) * follow;
+			const float ny  = py + ( f.y - py ) * follow;
+			if( dt > 0.0f )
+			{
+				track.vx += ( ( nx - track.x ) / dt - track.vx ) * 0.5f;
+				track.vy += ( ( ny - track.y ) / dt - track.vy ) * 0.5f;
+			}
+			track.x = nx;
+			track.y = ny;
+			track.w += ( f.w - track.w ) * follow;
+			track.h += ( f.h - track.h ) * follow;
+			track.mass    = f.mass;
+			track.matched = true;
+			track.missing = 0.0f;
+			++track.age;
 		}
 		else
 		{
-			b.id         = nextBlobId++;
-			b.number     = Random();
-			b.nextChange = time + ( 0.5f + ( Random() % 1000 ) / 1000.0f ) / rate;
+			// Lost for now: coast along the last motion while it holds its place, slowing down.
+			track.x = px;
+			track.y = py;
+			track.vx *= 0.85f;
+			track.vy *= 0.85f;
+			track.missing += dt;
 		}
 	}
+	for( size_t i = 0; i < found.size(); ++i )
+	{
+		if( claimed[ i ] || blobs.size() >= maxBlobs )
+			continue;
+		Blob track       = found[ i ];
+		track.id         = nextBlobId++;
+		track.age        = 1;
+		track.alpha      = 0.0f;
+		track.matched    = true;
+		track.number     = Random();
+		track.nextChange = time + ( 0.5f + ( Random() % 1000 ) / 1000.0f ) / rate;
+		std::set< int > used;
+		for( const Blob& b : blobs )
+			used.insert( b.slot );
+		track.slot = 1;
+		while( used.count( track.slot ) )
+			++track.slot;
+		blobs.push_back( track );
+	}
+	for( Blob& track : blobs )
+	{
+		const bool show = track.age >= showAfter && track.missing <= hold;
+		track.alpha += ( ( show ? 1.0f : 0.0f ) - track.alpha ) * fade;
+	}
+	blobs.erase( std::remove_if( blobs.begin(), blobs.end(), [ & ]( const Blob& b ) { return b.missing > hold && b.alpha < 0.01f; } ),
+				 blobs.end() );
+
 	const bool onBeat = params[ PID_NUMBERS_ON_BEAT ] > 0.5f;
-	for( Blob& b : found )
+	for( Blob& b : blobs )
 	{
 		if( onBeat ? beatHit : time >= b.nextChange )
 		{
@@ -528,16 +596,21 @@ void ImagBlob::DetectBlobs( float dt )
 			b.nextChange = time + ( 0.5f + ( Random() % 1000 ) / 1000.0f ) / rate;
 		}
 	}
-	blobs.swap( found );
-	(void)dt;
+	std::sort( blobs.begin(), blobs.end(), []( const Blob& a, const Blob& b ) { return a.slot < b.slot; } );
 
 	// Lines between blobs, distances measured with the frame's aspect so they look right on screen.
+	// Chain links blobs in label order (1-2-3...); Nearest and Network link by distance.
 	links.clear();
-	const int lineMode  = OptionIndex( params[ PID_LINES ], 3 );
+	const int lineMode  = OptionIndex( params[ PID_LINES ], 4 );
 	const float maxDist = 0.05f + params[ PID_LINK_DIST ] * 0.6f;
 	std::set< std::pair< int, int > > unique;
 	auto distance = [ & ]( const Blob& a, const Blob& b ) { return std::hypot( ( a.x - b.x ) * aspect, a.y - b.y ); };
 	if( lineMode == 1 )
+	{
+		for( int i = 0; i + 1 < (int)blobs.size(); ++i )
+			unique.insert( { i, i + 1 } );
+	}
+	else if( lineMode == 2 )
 	{
 		const int perBlob = OptionIndex( params[ PID_LINK_COUNT ], 4 ) + 1;
 		std::vector< std::pair< float, int > > nearest;
@@ -555,7 +628,7 @@ void ImagBlob::DetectBlobs( float dt )
 				unique.insert( { std::min( i, nearest[ k ].second ), std::max( i, nearest[ k ].second ) } );
 		}
 	}
-	else if( lineMode == 2 )
+	else if( lineMode == 3 )
 	{
 		for( int i = 0; i < (int)blobs.size(); ++i )
 			for( int j = i + 1; j < (int)blobs.size() && (int)unique.size() < kMaxLines; ++j )
@@ -570,8 +643,9 @@ void ImagBlob::BuildOverlay( float width, float height )
 {
 	vertices.clear();
 	auto colour = [ & ]( FFUInt32 first, float opacity, float out[ 4 ] ) {
+		HsbToRgb( &params[ first ], out );
 		for( int i = 0; i < 3; ++i )
-			out[ i ] = params[ first + i ] * opacity;//premultiplied
+			out[ i ] *= opacity;//premultiplied
 		out[ 3 ] = opacity;
 	};
 	auto vertex = [ & ]( float x, float y, float u, float v, const float c[ 4 ], float glyph ) {
@@ -617,24 +691,26 @@ void ImagBlob::BuildOverlay( float width, float height )
 	if( !links.empty() )
 	{
 		float c[ 4 ];
-		colour( PID_LINE_R, params[ PID_LINE_OPACITY ], c );
-		const float thickness = ( 1.0f + params[ PID_LINE_THICK ] * 5.0f ) * scale;
+		const float thickness = std::max( 1.0f, ( 1.0f + params[ PID_LINE_THICK ] * 5.0f ) * scale );
 		for( const auto& l : links )
-			line( blobs[ l.first ].x * width, blobs[ l.first ].y * height, blobs[ l.second ].x * width, blobs[ l.second ].y * height,
-				  thickness, c );
+		{
+			const Blob &a = blobs[ l.first ], &b = blobs[ l.second ];
+			colour( PID_LINE_R, params[ PID_LINE_OPACITY ] * std::min( a.alpha, b.alpha ), c );
+			if( c[ 3 ] > 0.004f )
+				line( a.x * width, a.y * height, b.x * width, b.y * height, thickness, c );
+		}
 	}
 
 	float sq[ 4 ], fill[ 4 ], txt[ 4 ];
-	colour( PID_SQ_R, params[ PID_SQ_OPACITY ], sq );
-	colour( PID_SQ_R, params[ PID_SQ_OPACITY ] * 0.3f, fill );
-	colour( PID_TEXT_R, params[ PID_TEXT_OPACITY ], txt );
 	const int style        = OptionIndex( params[ PID_SQ_STYLE ], 3 );
 	const bool regions     = OptionIndex( params[ PID_BLOB_MODE ], 2 ) == 1;
-	const float thickness  = ( 1.0f + params[ PID_SQ_THICK ] * 5.0f ) * scale;
-	const float baseSize   = ( 8.0f + params[ PID_SQ_SIZE ] * 50.0f ) * scale;
-	const int numberMode   = OptionIndex( params[ PID_NUMBERS ], 4 );
+	const float thickness  = std::max( 1.0f, ( 1.0f + params[ PID_SQ_THICK ] * 5.0f ) * scale );
+	const float baseSize   = ( 20.0f + params[ PID_SQ_SIZE ] * 280.0f ) * scale;
+	const float variation  = params[ PID_SIZE_VAR ];
+	const int numberMode   = OptionIndex( params[ PID_NUMBERS ], 5 );
+	const int position     = OptionIndex( params[ PID_NUMBER_POS ], 3 );
 	const int digits       = OptionIndex( params[ PID_DIGITS ], 5 ) + 2;
-	const float glyphH     = ( 10.0f + params[ PID_TEXT_SIZE ] * 40.0f ) * scale;
+	const float glyphH     = std::max( 6.0f, ( 8.0f + params[ PID_TEXT_SIZE ] * 50.0f ) * scale );
 	const float glyphW     = glyphH * 4.0f / 6.0f;
 	const float glyphGap   = glyphH / 6.0f;
 	uint32_t modulus = 1;
@@ -643,10 +719,16 @@ void ImagBlob::BuildOverlay( float width, float height )
 
 	for( const Blob& b : blobs )
 	{
+		if( b.alpha < 0.004f )
+			continue;
+		colour( PID_SQ_R, params[ PID_SQ_OPACITY ] * b.alpha, sq );
+		colour( PID_SQ_R, params[ PID_SQ_OPACITY ] * 0.3f * b.alpha, fill );
+		colour( PID_TEXT_R, params[ PID_TEXT_OPACITY ] * b.alpha, txt );
 		const float cx = b.x * width, cy = b.y * height;
-		// Points: size follows how much of the cell is covered. Regions: a square around the region.
+		// Points: one size for all, or varying with how much of the cell is covered (Size Variation).
+		// Regions: a square around the whole region.
 		float half = regions ? 0.5f * std::max( b.w * width, b.h * height ) * ( 0.6f + params[ PID_SQ_SIZE ] * 0.8f )
-							 : 0.5f * baseSize * ( 0.6f + 0.4f * std::sqrt( std::min( b.mass, 1.0f ) ) );
+							 : 0.5f * baseSize * ( 1.0f - variation + variation * std::sqrt( std::min( b.mass, 1.0f ) ) );
 		half = std::max( half, thickness * 2.0f );
 		const float x0 = cx - half, x1 = cx + half, y0 = cy - half, y1 = cy + half, t = thickness;
 
@@ -671,24 +753,28 @@ void ImagBlob::BuildOverlay( float width, float height )
 			rect( x0, y0, x0 + t, y1, sq );
 			rect( x1 - t, y0, x1, y1, sq );
 		}
-		rect( cx - t, cy - t, cx + t, cy + t, sq );//centre mark
-
 		if( numberMode == 0 )
 			continue;
 		char text[ 32 ];
 		if( numberMode == 1 )
-			std::snprintf( text, sizeof( text ), "%0*u", digits, b.number % modulus );
+			std::snprintf( text, sizeof( text ), "%.4f", b.slot / 7.0f );//0.1429, 0.2857, ... stays with the box
 		else if( numberMode == 2 )
+			std::snprintf( text, sizeof( text ), "%0*u", digits, b.number % modulus );
+		else if( numberMode == 3 )
 			std::snprintf( text, sizeof( text ), "%0*u", digits, (uint32_t)b.id % modulus );
 		else
 			std::snprintf( text, sizeof( text ), "%04d %04d", (int)cx, (int)cy );
 		const int length  = (int)std::strlen( text );
 		const float total = length * glyphW + ( length - 1 ) * glyphGap;
 		float x           = cx - total * 0.5f;
-		const float y     = y1 + glyphGap * 2.0f;
+		const float y     = position == 0 ? y1 - glyphH * 2.2f : ( position == 1 ? y1 + glyphGap * 2.0f : cy - glyphH * 0.5f );
 		for( int i = 0; i < length; ++i, x += glyphW + glyphGap )
+		{
 			if( text[ i ] >= '0' && text[ i ] <= '9' )
 				glyph( text[ i ] - '0', x, y, glyphW, glyphH, txt );
+			else if( text[ i ] == '.' )
+				glyph( kPeriodGlyph, x, y, glyphW, glyphH, txt );
+		}
 	}
 }
 
@@ -792,10 +878,14 @@ FFResult ImagBlob::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 			shader->Set( "MaxUV", 1.0f, 1.0f );
 			shader->Set( "Resolution", width, height );
 			shader->Set( "Contrast", 0.5f + params[ PID_CONTRAST ] * 2.5f );
-			shader->Set( "DarkColor", params[ PID_DARK_R ], params[ PID_DARK_G ], params[ PID_DARK_B ] );
-			shader->Set( "LightColor", params[ PID_LIGHT_R ], params[ PID_LIGHT_G ], params[ PID_LIGHT_B ] );
+			float dark[ 3 ], light[ 3 ];
+			HsbToRgb( &params[ PID_DARK_R ], dark );
+			HsbToRgb( &params[ PID_LIGHT_R ], light );
+			shader->Set( "DarkColor", dark[ 0 ], dark[ 1 ], dark[ 2 ] );
+			shader->Set( "LightColor", light[ 0 ], light[ 1 ], light[ 2 ] );
 			shader->Set( "CellSize", ( 6.0f + params[ PID_CELL ] * 24.0f ) * height / 1080.0f );
 			shader->Set( "FeedMix", params[ PID_FEED_MIX ] );
+			shader->Set( "AtlasWidth", (float)kAtlasWidth );
 		}
 		else
 		{

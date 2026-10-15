@@ -15,27 +15,32 @@ Five camera effect plugins for Resolume Arena/Avenue (FFGL 2.x, C++/OpenGL/GLSL)
 - `scripts/build-windows-mingw.sh`: cross-compiles all five DLLs from Linux
 - Ready-made Windows and macOS builds: GitHub Actions (`.github/workflows/imagfx.yml`) attaches them to a release on every push
 - `docs/ANALYSIS.md`: product analysis, how the effects work, build/install instructions, roadmap
-- `docs/test-renders.png`, `docs/flame-renders.png`, `docs/looks-renders.png`, `docs/looks-overlays.png`, `docs/key-renders.png`, `docs/blob-renders.png`: frames rendered by the test host
+- `docs/test-renders.png`, `docs/flame-renders.png`, `docs/looks-renders.png`, `docs/looks-overlays.png`, `docs/key-renders.png`, `docs/blob-renders.png`, `docs/blob-tracking-strip.png`: frames rendered by the test host
 
 ## IMAG Blob
 
-Live blob tracking. It finds what moves (or the keyed / bright subject), puts a square on each blob with a number above it, and links blobs with lines. All of this is drawn over the camera feed, which you can restyle.
+Live blob tracking in the classic "data tracking" style: steady, thin-outlined boxes on the subject, a decimal label inside each box (0.1429, 0.2857, …) and a chain of lines linking them. All of it is drawn over the camera feed, which you can restyle.
 
-**How it works:** the GPU builds the subject mask and a grid of blob positions; a small grid (a few KB) is read back each frame. On the CPU, blobs are matched to the previous frame, so each one keeps its identity and number as it moves. Squares, lines and digits are drawn as geometry, and digits and ASCII come from a small built-in pixel font. Every feed mode is its own small shader, compiled on first use. If a driver ever rejects one, the plain camera shows and **Status** gives the driver's reason.
+**How it works:** the GPU builds the subject mask and a grid of blob positions; a small grid (a few KB) is read back each frame. On the CPU, the grid is smoothed over time and blobs become **tracks**:
+- each track is matched to where it is predicted to be (it keeps a velocity), so fast movement doesn't lose it;
+- it keeps its ID, label and number for its whole life;
+- it has to be seen for a few frames before it appears, holds its place for **Hold Time** if a detection is missed, and fades in and out instead of blinking.
+
+Squares, lines and digits are drawn as geometry, and digits and ASCII come from a small built-in pixel font. Every feed mode is its own small shader, compiled on first use. If a driver ever rejects one, the plain camera shows and **Status** gives the driver's reason.
 
 | Group | Controls |
 |---|---|
-| Detection | **Detect** (Motion / Keyed alpha / Brightness / Motion in key), Threshold, Grid (8–64 cells), **Blob Mode** (Points: one square per tracked spot; Regions: one square around each connected region), Max Blobs, **Spacing** (minimum distance between blobs), Smoothing |
-| Squares | Square Style (Outline / Filled / Corners), Square Size, Square Thickness, **Square Intensity**, Square Colour |
-| Lines | Lines (Off / Nearest / Network), Links Per Blob, Link Distance, Line Thickness, Line Intensity, Line Colour |
-| Numbers | Numbers (Off / Random / Blob ID / Coordinates), Digits, Number Speed, Numbers On Beat, Number Size, Number Intensity, Number Colour |
-| Feed | **Feed** (Normal / Monochrome / Dual Tone / ASCII / Halftone), Feed Mix, Feed Contrast, ASCII / Dot Size, Feed Dark and Feed Light colours (dual tone colours; ASCII background/characters; halftone ink/paper), Status |
+| Detection | **Detect** (Motion / Keyed alpha / Brightness / Motion in key), Threshold, Grid (8–64 cells), **Blob Mode** (Points / Regions), Max Blobs, Spacing, **Smoothing** (steadier, slower boxes), **Hold Time** (how long a box survives a missed detection) |
+| Squares | Square Style (Outline / Filled / Corners), Square Size, **Size Variation** (0 = all the same size), Square Thickness, **Square Intensity**, Square Colour |
+| Lines | Lines (Off / **Chain** / Nearest / Network), Links Per Blob, Link Distance, Line Thickness, Line Intensity, Line Colour |
+| Numbers | Numbers (Off / **Decimal** / Random / Blob ID / Coordinates), Digits, Number Speed, Numbers On Beat, Number Size, **Number Position** (Inside top / Above / Centre), Number Intensity, Number Colour |
+| Feed | **Feed** (Normal / Monochrome / Dual Tone / ASCII / Halftone), Feed Mix, Feed Contrast, ASCII / Dot Size, Feed Dark and Feed Light colours, Status |
 
 **Tips:**
-- On a fixed camera, **Motion** tracks whatever moves.
+- The defaults give the classic look: Brightness detection, about 8 large boxes, Decimal labels inside, and a Chain of lines.
+- Switch **Detect → Motion** to follow movement instead.
 - To track only the performer, put **IMAG Key** first and set **Detect → Keyed alpha**.
-- Raise **Spacing** or lower **Max Blobs** for a cleaner look.
-- **Regions** with **Corners** gives large framing boxes.
+- If boxes still feel jumpy, raise **Smoothing** and **Hold Time**.
 
 ## IMAG Key
 
@@ -155,9 +160,13 @@ These sit in their own groups under the look controls, and stack in this order o
 | Levels | Depth | 3D pop-out: background defocuses and dims, subject extrudes behind itself |
 | Levels | Dual Tone, Dual Dark, Dual Light | Maps the image between two colours you choose |
 
-Colour controls show as colour pickers in Arena. The Status field reads "OK: <look>", or shows the graphics driver's error if a look can't run on your machine.
+Colour controls are hue / saturation / brightness, shown in Arena as a rainbow colour picker. The Status field reads "OK: <look>", or shows the graphics driver's error if a look can't run on your machine.
 
 **Tip:** for black backgrounds like the reel, key the camera (NVIDIA Broadcast + Auto Mask). The looks keep the transparency, so you can stack IMAG Looks after IMAG Flame or IMAG FX on the same clip.
+
+## Colour controls
+
+Every colour control in every plugin is **hue / saturation / brightness**, which Arena shows as a rainbow colour picker with saturation and brightness. This covers IMAG Looks (tracking squares, echo A/B, ASCII, dual tone), IMAG Blob (squares, lines, numbers, feed colours) and IMAG Key (key colour, background colour). Plugins convert to RGB internally.
 
 ## Build
 

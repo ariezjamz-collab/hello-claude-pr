@@ -12,7 +12,8 @@
 // The plugin prepends "#version 410 core" and "#define FEED_MODE n".
 static const char kFeedFragmentBody[] = R"(
 uniform sampler2D FrameTex;
-uniform sampler2D AtlasTex;// glyph atlas: 21 slots of 5x7 texels (4x6 glyph + gap); slots 10-20 are ASCII density
+uniform sampler2D AtlasTex;// glyph atlas: slots of 5x7 texels (4x6 glyph + gap); slots 10-20 are ASCII density
+uniform float AtlasWidth;  // texels
 uniform vec2 Resolution;
 uniform float Contrast;
 uniform vec3 DarkColor;
@@ -50,7 +51,7 @@ void main()
 	float t       = tone( texture( FrameTex, centre ) );
 	float glyph   = floor( t * 10.999 );
 	vec2 local    = fract( px / cell );
-	vec2 atlasUV  = vec2( ( ( 10.0 + glyph ) * 5.0 + local.x * 4.0 ) / 105.0, ( local.y * 6.0 ) / 7.0 );
+	vec2 atlasUV  = vec2( ( ( 10.0 + glyph ) * 5.0 + local.x * 4.0 ) / AtlasWidth, ( local.y * 6.0 ) / 7.0 );
 	float ink     = texture( AtlasTex, atlasUV ).r;
 	col           = mix( DarkColor, LightColor, ink );
 #elif FEED_MODE == 4

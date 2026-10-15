@@ -1,6 +1,7 @@
 #include "ImagKey.h"
 #include "ImagKeyShaders.h"
 #include "PluginLog.h"
+#include "ColorUtil.h"
 #include <algorithm>
 #include <cmath>
 
@@ -67,8 +68,8 @@ ImagKey::ImagKey() :
 	params[ PID_THRESHOLD ]   = 0.25f;
 	params[ PID_SOFTNESS ]    = 0.15f;
 	params[ PID_SHADOWS ]     = 0.6f;
-	params[ PID_KEY_G ]       = 0.75f;
-	params[ PID_KEY_B ]       = 0.2f;
+	const float green[ 3 ] = { 0.0f, 0.75f, 0.2f };
+	RgbToHsb( green, &params[ PID_KEY_R ] );//colour controls are hue / saturation / brightness
 	params[ PID_SPILL ]       = 0.6f;
 	params[ PID_CLEAN ]       = 0.25f;
 	params[ PID_CHOKE ]       = 0.5f;
@@ -95,9 +96,9 @@ ImagKey::ImagKey() :
 	SetParamInfof( PID_THRESHOLD, "Threshold", FF_TYPE_STANDARD );
 	SetParamInfof( PID_SOFTNESS, "Softness", FF_TYPE_STANDARD );
 	SetParamInfof( PID_SHADOWS, "Ignore Shadows", FF_TYPE_STANDARD );
-	SetParamInfof( PID_KEY_R, "Key Colour", FF_TYPE_RED );
-	SetParamInfof( PID_KEY_G, "Key Colour_Green", FF_TYPE_GREEN );
-	SetParamInfof( PID_KEY_B, "Key Colour_Blue", FF_TYPE_BLUE );
+	SetParamInfof( PID_KEY_R, "Key Colour", FF_TYPE_HUE );
+	SetParamInfof( PID_KEY_G, "Key Colour_Sat", FF_TYPE_SATURATION );
+	SetParamInfof( PID_KEY_B, "Key Colour_Bri", FF_TYPE_BRIGHTNESS );
 	SetParamInfof( PID_SPILL, "Spill Removal", FF_TYPE_STANDARD );
 	SetParamInfo( PID_LUMA_INVERT, "Luma Invert", FF_TYPE_BOOLEAN, false );
 	group( { PID_MODE, PID_LEARN, PID_AUTO_UPDATE, PID_THRESHOLD, PID_SOFTNESS, PID_SHADOWS, PID_KEY_R, PID_KEY_G, PID_KEY_B,
@@ -116,9 +117,9 @@ ImagKey::ImagKey() :
 
 	addOption( PID_VIEW, "View", { "Output", "Matte", "Overlay" } );
 	addOption( PID_BACKGROUND, "Background", { "Transparent", "Black", "Colour" } );
-	SetParamInfof( PID_BG_R, "Background Colour", FF_TYPE_RED );
-	SetParamInfof( PID_BG_G, "Background Colour_Green", FF_TYPE_GREEN );
-	SetParamInfof( PID_BG_B, "Background Colour_Blue", FF_TYPE_BLUE );
+	SetParamInfof( PID_BG_R, "Background Colour", FF_TYPE_HUE );
+	SetParamInfof( PID_BG_G, "Background Colour_Sat", FF_TYPE_SATURATION );
+	SetParamInfof( PID_BG_B, "Background Colour_Bri", FF_TYPE_BRIGHTNESS );
 	SetParamInfo( PID_STATUS, "Status", FF_TYPE_TEXT, status.c_str() );
 	group( { PID_VIEW, PID_BACKGROUND, PID_BG_R, PID_BG_G, PID_BG_B, PID_STATUS }, "Output" );
 }
@@ -268,6 +269,9 @@ FFResult ImagKey::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 
 	// 3. Raw matte.
 	const int mode = OptionIndex( params[ PID_MODE ], 3 );
+	float keyColour[ 3 ], backgroundColour[ 3 ];
+	HsbToRgb( &params[ PID_KEY_R ], keyColour );
+	HsbToRgb( &params[ PID_BG_R ], backgroundColour );
 	{
 		ScopedFBOBinding fboBinding( rawMatte.GetGLID(), ScopedFBOBinding::RB_REVERT );
 		ScopedShaderBinding shaderBinding( rawShader.GetGLID() );
@@ -281,7 +285,7 @@ FFResult ImagKey::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 		rawShader.Set( "Threshold", params[ PID_THRESHOLD ] * 0.8f );
 		rawShader.Set( "Softness", params[ PID_SOFTNESS ] * 0.5f );
 		rawShader.Set( "ShadowTolerance", params[ PID_SHADOWS ] );
-		rawShader.Set( "KeyColor", params[ PID_KEY_R ], params[ PID_KEY_G ], params[ PID_KEY_B ] );
+		rawShader.Set( "KeyColor", keyColour[ 0 ], keyColour[ 1 ], keyColour[ 2 ] );
 		rawShader.Set( "LumaInvert", params[ PID_LUMA_INVERT ] > 0.5f ? 1 : 0 );
 		rawShader.Set( "Crop", params[ PID_CROP_LEFT ] * 0.5f, params[ PID_CROP_RIGHT ] * 0.5f, params[ PID_CROP_BOTTOM ] * 0.5f,
 					   params[ PID_CROP_TOP ] * 0.5f );
@@ -341,9 +345,9 @@ FFResult ImagKey::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 		outputShader.Set( "MaxUV", 1.0f, 1.0f );
 		outputShader.Set( "View", OptionIndex( params[ PID_VIEW ], 3 ) );
 		outputShader.Set( "Background", OptionIndex( params[ PID_BACKGROUND ], 3 ) );
-		outputShader.Set( "BackgroundColor", params[ PID_BG_R ], params[ PID_BG_G ], params[ PID_BG_B ] );
+		outputShader.Set( "BackgroundColor", backgroundColour[ 0 ], backgroundColour[ 1 ], backgroundColour[ 2 ] );
 		outputShader.Set( "Mode", mode );
-		outputShader.Set( "KeyColor", params[ PID_KEY_R ], params[ PID_KEY_G ], params[ PID_KEY_B ] );
+		outputShader.Set( "KeyColor", keyColour[ 0 ], keyColour[ 1 ], keyColour[ 2 ] );
 		outputShader.Set( "Spill", params[ PID_SPILL ] );
 		quad.Draw();
 		unbindTextures( 2 );
