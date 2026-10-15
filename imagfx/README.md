@@ -9,10 +9,10 @@ A camera-look effect plugin for Resolume Arena/Avenue (FFGL 2.x, C++/OpenGL/GLSL
 - `docs/ANALYSIS.md`: product analysis, how the effects work, build/install instructions, roadmap
 - `docs/test-renders.png`: frames rendered by the test host for six presets
 
-Quick build (Windows):
+Quick build (Windows, any recent Visual Studio with the C++ workload):
 
 ```bat
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+cmake -S . -B build -A x64
 cmake --build build --config Release
 ```
 

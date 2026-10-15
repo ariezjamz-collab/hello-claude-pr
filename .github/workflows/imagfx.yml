@@ -34,7 +34,7 @@ jobs:
         if: matrix.name == 'windows'
         shell: bash
         run: |
-          cmake -S imagfx -B build -G "Visual Studio 17 2022" -A x64 -DFFGL_SDK_DIR="$GITHUB_WORKSPACE/ffgl-sdk"
+          cmake -S imagfx -B build -A x64 -DFFGL_SDK_DIR="$GITHUB_WORKSPACE/ffgl-sdk"
           cmake --build build --config Release
           mkdir -p dist
           cp build/Release/ImagFX.dll dist/

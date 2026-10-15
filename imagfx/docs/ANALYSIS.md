@@ -128,10 +128,10 @@ All parameters can be MIDI/OSC-mapped and animated in Resolume like any built-in
 
 ### Build and install
 
-**Windows (Visual Studio 2022, x64):**
+**Windows (Visual Studio 2022 or newer, x64):**
 ```bat
 cd imagfx
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+cmake -S . -B build -A x64
 cmake --build build --config Release
 copy build\Release\ImagFX.dll "%USERPROFILE%\Documents\Resolume Arena\Extra Effects\"
 ```
