@@ -55,11 +55,43 @@ function(add_imag_plugin target)
     endif()
 endfunction()
 
-add_imag_plugin(ImagFX src/ImagFX.cpp src/ImagFX.h src/ImagFXShaders.h src/ShaderCommon.h src/PluginLog.h)
-add_imag_plugin(ImagFlame src/ImagFlame.cpp src/ImagFlame.h src/ImagFlameShaders.h src/ShaderCommon.h src/PluginLog.h)
-add_imag_plugin(ImagBlob src/ImagBlob.cpp src/ImagBlob.h src/TrackOverlay.h src/TrackOverlayShaders.h src/ColorUtil.h src/ShaderCommon.h src/PluginLog.h)
-add_imag_plugin(ImagKey src/ImagKey.cpp src/ImagKey.h src/ImagKeyShaders.h src/ShaderCommon.h src/PluginLog.h)
-add_imag_plugin(ImagLooks src/ImagLooks.cpp src/ImagLooks.h src/ImagLooksShaders.h src/ShaderCommon.h src/PluginLog.h)
+# libfacedetection (BSD 3-Clause, https://github.com/ShiqiYu/libfacedetection) for IMAG Face.
+set(FACEDETECT_DIR "" CACHE PATH "Path to a checkout of https://github.com/ShiqiYu/libfacedetection")
+if(NOT FACEDETECT_DIR)
+    include(FetchContent)
+    FetchContent_Declare(facedetection
+        URL https://github.com/ShiqiYu/libfacedetection/archive/acf7b254121927e7dced30e233a2e03119f28ea2.tar.gz)
+    FetchContent_GetProperties(facedetection)
+    if(NOT facedetection_POPULATED)
+        FetchContent_Populate(facedetection)
+    endif()
+    set(FACEDETECT_DIR ${facedetection_SOURCE_DIR})
+endif()
+set(FACEDETECT_SOURCES
+    ${FACEDETECT_DIR}/src/facedetectcnn.cpp
+    ${FACEDETECT_DIR}/src/facedetectcnn-model.cpp
+    ${FACEDETECT_DIR}/src/facedetectcnn-data.cpp)
+# Only the detector's own files get the SIMD flags; the plugin checks for AVX2 at runtime before using it.
+set_source_files_properties(${FACEDETECT_SOURCES} PROPERTIES
+    INCLUDE_DIRECTORIES "${FACEDETECT_DIR}/src;${CMAKE_CURRENT_SOURCE_DIR}/third_party/facedetection")
+if(MSVC)
+    set_source_files_properties(${FACEDETECT_SOURCES} PROPERTIES COMPILE_OPTIONS "/arch:AVX2;/W0")
+elseif(APPLE)
+    # Universal binary: AVX2 for the Intel slice; the Apple Silicon slice uses NEON (see the export shim).
+    set_source_files_properties(${FACEDETECT_SOURCES} PROPERTIES COMPILE_OPTIONS
+        "SHELL:-Xarch_x86_64 -mavx2;SHELL:-Xarch_x86_64 -mfma;-w")
+else()
+    set_source_files_properties(${FACEDETECT_SOURCES} PROPERTIES COMPILE_OPTIONS "-mavx2;-mfma;-w")
+endif()
+
+add_imag_plugin(ImagFX src/ImagFX.cpp src/ImagFX.h src/PassThrough.h src/ImagFXShaders.h src/ShaderCommon.h src/PluginLog.h)
+add_imag_plugin(ImagFlame src/ImagFlame.cpp src/ImagFlame.h src/PassThrough.h src/ImagFlameShaders.h src/ShaderCommon.h src/PluginLog.h)
+add_imag_plugin(ImagBlob src/ImagBlob.cpp src/ImagBlob.h src/PassThrough.h src/TrackOverlay.h src/TrackOverlayShaders.h src/ColorUtil.h src/ShaderCommon.h src/PluginLog.h)
+add_imag_plugin(ImagFace src/ImagFace.cpp src/ImagFace.h src/FaceDetector.h src/TrackOverlay.h src/TrackOverlayShaders.h src/ColorUtil.h src/ShaderCommon.h src/PluginLog.h ${FACEDETECT_SOURCES})
+find_package(Threads REQUIRED)
+target_link_libraries(ImagFace PRIVATE Threads::Threads)
+add_imag_plugin(ImagKey src/ImagKey.cpp src/ImagKey.h src/PassThrough.h src/ImagKeyShaders.h src/ShaderCommon.h src/PluginLog.h)
+add_imag_plugin(ImagLooks src/ImagLooks.cpp src/ImagLooks.h src/PassThrough.h src/ImagLooksShaders.h src/ShaderCommon.h src/PluginLog.h)
 
 option(IMAGFX_BUILD_TEST_HOST "Build the headless test host (Linux, EGL)" OFF)
 if(IMAGFX_BUILD_TEST_HOST)

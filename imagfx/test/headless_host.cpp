@@ -173,6 +173,54 @@ static void DrawCameraFrame( std::vector< unsigned char >& rgba, int frame, cons
 	}
 }
 
+// Optional real footage: IMAG_TEST_IMAGE=<binary .ppm> makes the camera a slow pan and zoom across that
+// picture instead of the drawn figure (used for IMAG Face, which needs real faces). IMAG_TEST_STILL=1 holds
+// the view still.
+struct TestImage
+{
+	int width = 0, height = 0;
+	std::vector< unsigned char > rgb;
+};
+
+static bool LoadPPM( const char* path, TestImage& image )
+{
+	FILE* f = std::fopen( path, "rb" );
+	if( !f )
+		return false;
+	int maxValue = 0;
+	const bool ok = std::fscanf( f, "P6 %d %d %d", &image.width, &image.height, &maxValue ) == 3 && maxValue == 255 && std::fgetc( f ) != EOF;
+	if( ok )
+	{
+		image.rgb.resize( (size_t)image.width * image.height * 3 );
+		const bool complete = std::fread( image.rgb.data(), 1, image.rgb.size(), f ) == image.rgb.size();
+		std::fclose( f );
+		return complete;
+	}
+	std::fclose( f );
+	return false;
+}
+
+static void DrawImageFrame( std::vector< unsigned char >& rgba, int frame, const TestImage& image )
+{
+	const float t    = std::getenv( "IMAG_TEST_STILL" ) ? 0.0f : frame / 60.0f;
+	const float zoom = 0.75f + 0.1f * std::sin( t * 0.9f );//share of the picture's width in view
+	const float viewW = image.width * zoom, viewH = viewW * H / W;
+	const float x0 = ( image.width - viewW ) * ( 0.5f + 0.5f * std::sin( t * 1.3f ) );
+	const float y0 = ( image.height - viewH ) * ( 0.5f + 0.5f * std::cos( t * 0.8f ) );
+	for( int y = 0; y < H; ++y )
+		for( int x = 0; x < W; ++x )
+		{
+			const int sx = std::min( image.width - 1, (int)( x0 + ( x + 0.5f ) * viewW / W ) );
+			const int sy = std::min( image.height - 1, (int)( y0 + ( H - 1 - y + 0.5f ) * viewH / H ) );//GL rows are bottom-up
+			const unsigned char* src = &image.rgb[ ( (size_t)sy * image.width + sx ) * 3 ];
+			unsigned char* p         = &rgba[ ( y * W + x ) * 4 ];
+			p[ 0 ] = src[ 0 ];
+			p[ 1 ] = src[ 1 ];
+			p[ 2 ] = src[ 2 ];
+			p[ 3 ] = 255;
+		}
+}
+
 static void WritePPM( const std::string& path, const std::vector< unsigned char >& rgba )
 {
 	FILE* f = std::fopen( path.c_str(), "wb" );
@@ -231,6 +279,13 @@ static std::map< std::string, std::map< std::string, float > > Presets()
 		{ "blob_ascii", { { "Feed", 3.0f }, { "Lines", 2.0f }, { "Numbers", 3.0f } } },
 		{ "blob_halftone", { { "Feed", 4.0f }, { "Number Size", 0.6f }, { "Square Size", 0.8f } } },
 		{ "blob_keyed", { { "_empty_frames", 40.0f }, { "Detect", 1.0f }, { "Grid", 1.0f } } },
+		// IMAG Face (run with IMAG_TEST_IMAGE pointing at a picture with faces).
+		{ "face_default", {} },
+		{ "face_landmarks", { { "Landmarks", 1.0f }, { "Numbers", 5.0f }, { "Box Style", 2.0f }, { "Lines", 3.0f } } },
+		{ "face_mono", { { "Feed", 1.0f }, { "Box Shape", 0.0f }, { "Lines", 2.0f } } },
+		{ "face_dualtone", { { "Feed", 2.0f }, { "Numbers", 2.0f }, { "Box Style", 1.0f }, { "Box Colour", 0.55f } } },
+		{ "face_ascii", { { "Feed", 3.0f }, { "Numbers", 3.0f } } },
+		{ "face_halftone", { { "Feed", 4.0f }, { "Detect Size", 2.0f } } },
 		// "Effect On" toggle: off from frame 20, back on at 40 (checks pass-through and a clean restart).
 		{ "toggle", { { "_toggle", 20.0f } } },
 		{ "everything", { { "Red Delay", 0.3f }, { "Blue Delay", 0.1f }, { "Chroma Split", 0.3f }, { "Trails", 0.7f }, { "Trail Zoom", 0.58f },
@@ -366,6 +421,15 @@ int main( int argc, char** argv )
 		makeTarget( plugin.fbo, plugin.texture );
 
 	std::vector< unsigned char > pixels( W * H * 4 ), cameraPixels;
+	TestImage testImage;
+	if( const char* path = std::getenv( "IMAG_TEST_IMAGE" ) )
+	{
+		if( !LoadPPM( path, testImage ) )
+		{
+			std::fprintf( stderr, "could not read %s (binary PPM expected)\n", path );
+			return 1;
+		}
+	}
 	auto setEnabled = [ & ]( float value ) {
 		for( LoadedPlugin& plugin : chain )
 		{
@@ -399,7 +463,10 @@ int main( int argc, char** argv )
 	{
 		if( camera.toggleAt > 0 && ( frame == camera.toggleAt || frame == 2 * camera.toggleAt ) )
 			setEnabled( frame == camera.toggleAt ? 0.0f : 1.0f );
-		DrawCameraFrame( pixels, frame, camera );
+		if( !testImage.rgb.empty() )
+			DrawImageFrame( pixels, frame, testImage );
+		else
+			DrawCameraFrame( pixels, frame, camera );
 		cameraPixels = pixels;
 		glBindTexture( GL_TEXTURE_2D, inputTex );
 		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data() );

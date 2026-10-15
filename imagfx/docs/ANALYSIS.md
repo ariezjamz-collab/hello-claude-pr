@@ -149,6 +149,7 @@ CMake fetches the FFGL SDK automatically, or you can pass `-DFFGL_SDK_DIR=/path/
 cmake -S imagfx -B build -DIMAGFX_BUILD_TEST_HOST=ON && cmake --build build
 Xvfb :99 & DISPLAY=:99 build/test/headless_host build/ImagFX.so /tmp everything 120
 ```
+IMAG Face needs real faces: point `IMAG_TEST_IMAGE` at a binary `.ppm` photo with faces, and the test camera pans slowly across it. Add `IMAG_TEST_STILL=1` to hold the view still. Example: `IMAG_TEST_IMAGE=crowd.ppm build/test/headless_host build/ImagFace.so /tmp face_landmarks 120`. The `toggle` preset switches every plugin's Effect On off and on again, and checks that the output while off equals the input.
 
 ### Testing it in Resolume
 1. Put a camera (or the NVIDIA Broadcast virtual camera + **Auto Mask**) on a layer.

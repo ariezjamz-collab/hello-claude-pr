@@ -1,18 +1,22 @@
 # IMAG FX
 
-Five camera effect plugins for Resolume Arena/Avenue (FFGL 2.x, C++/OpenGL/GLSL). Each is a separate file and appears separately in Arena's Effects browser.
+Six camera effect plugins for Resolume Arena/Avenue (FFGL 2.x, C++/OpenGL/GLSL). Each is a separate file and appears separately in Arena's Effects browser.
+
+Every plugin has an **Effect On** toggle as its first control. Switched off, it passes the camera through untouched. When you switch it back on, its trails and history start fresh. Map it to a key or MIDI button to cut the effect in and out live.
 
 | Plugin | File | What it does |
 |---|---|---|
+| **IMAG Face** | `ImagFace.dll` / `ImagFace.bundle` | Multi-face tracking: a box on every face, connecting lines, numbers (or detection confidence) and optional landmark dots, over the same five feeds as IMAG Blob |
 | **IMAG Blob** | `ImagBlob.dll` / `ImagBlob.bundle` | Blob tracking: squares on moving subjects, connecting lines and numbers above each square, over a Normal / Monochrome / Dual Tone / ASCII / Halftone feed |
 | **IMAG Key** | `ImagKey.dll` / `ImagKey.bundle` | Keys the performer out of the camera (difference, chroma or luma key) so the other effects can use **Keyed alpha** |
 | **IMAG FX** | `ImagFX.dll` / `ImagFX.bundle` | Glitch looks: RGB time delay, feedback trails, noise warp, beat-synced slice glitch, sheen sweep, scanlines, static |
 | **IMAG Flame** | `ImagFlame.dll` / `ImagFlame.bundle` | Monochrome camera with flame trails rising off the subject, heat-haze distortion, spectral dispersion and subject tracking with small tracking squares |
 | **IMAG Looks** | `ImagLooks.dll` / `ImagLooks.bundle` | Effects panel: one dropdown of camera looks (night vision, fire map, gold edge, analog TV, glitter, comic, halftone, paper texture, animated cartoon, ...) plus overlays for every look: tracking squares, coloured echoes, ASCII, and distortion / dispersion / flames / depth / dual-tone levels with custom colours |
 
-- `src/`: the plugins (`ImagFX.cpp`, `ImagFlame.cpp`, `ImagLooks.cpp`) and their shaders
+- `src/`: the plugins and their shaders; `TrackOverlay.h` holds the tracking and graphics that IMAG Blob and IMAG Face share
+- `third_party/facedetection/`: build shim and licence for [libfacedetection](https://github.com/ShiqiYu/libfacedetection), the face detector in IMAG Face (BSD 3-Clause, Shiqi Yu; fetched at build time)
 - `test/`: a headless FFGL host for rendering and checking the plugins without Resolume (Linux, or Windows/Wine)
-- `scripts/build-windows-mingw.sh`: cross-compiles all five DLLs from Linux
+- `scripts/build-windows-mingw.sh`: cross-compiles all six DLLs from Linux (IMAG Face needs `FACEDETECT_DIR`)
 - Ready-made Windows and macOS builds: GitHub Actions (`.github/workflows/imagfx.yml`) attaches them to a release on every push
 - `docs/ANALYSIS.md`: product analysis, how the effects work, build/install instructions, roadmap
 - `docs/test-renders.png`, `docs/flame-renders.png`, `docs/looks-renders.png`, `docs/looks-overlays.png`, `docs/key-renders.png`, `docs/blob-renders.png`, `docs/blob-tracking-strip.png`: frames rendered by the test host
@@ -41,6 +45,29 @@ Squares, lines and digits are drawn as geometry, and digits and ASCII come from 
 - Switch **Detect → Motion** to follow movement instead.
 - To track only the performer, put **IMAG Key** first and set **Detect → Keyed alpha**.
 - If boxes still feel jumpy, raise **Smoothing** and **Hold Time**.
+
+## IMAG Face
+
+A multi-face tracker that works like IMAG Blob, but on faces. Every face gets a box that glides with it and keeps its label. Lines link the faces, and the feed underneath can be restyled.
+
+**How it works:** each frame is scaled down (Detect Size), read back and handed to a face detector running on its own CPU thread. The detector is libfacedetection, a small CNN that returns a box, a confidence and five landmarks (eyes, nose, mouth corners) per face. Rendering never waits for it: the boxes are drawn every frame from the latest results. Between results they ease toward the newest position, using the same tracking as IMAG Blob (stable labels, Hold Time, fade in and out).
+
+| Group | Controls |
+|---|---|
+| Detection | **Detect Size** (320 fastest / 480 / 640 for small or distant faces), **Min Confidence**, Max Faces (1–16), Smoothing, Hold Time |
+| Boxes | Box Style (Outline / Filled / Corners), **Box Shape** (Face / Square), Box Size (padding around the face), Box Thickness, Box Intensity, Box Colour, **Landmarks**, Landmark Size |
+| Lines | Lines (Off / **Chain** / Nearest / Network), Links Per Face, Link Distance, Line Thickness, Line Intensity, Line Colour |
+| Numbers | Numbers (Off / **Decimal** / Random / Face ID / Coordinates / **Confidence**), Digits, Number Speed, Numbers On Beat, Number Size, Number Position, Number Intensity, Number Colour |
+| Feed | **Feed** (Normal / Monochrome / Dual Tone / ASCII / Halftone), Feed Mix, Feed Contrast, ASCII / Dot Size, Feed Dark and Feed Light colours, Status |
+
+**Status** shows how many faces are found, the detector size and how long a detection takes. Detection takes about 20 ms at 480 on a typical desktop CPU, so boxes update 30–50 times a second.
+
+**Requirements:** on Windows and Intel Macs the detector needs a CPU with AVX2 (Intel 2013+ / AMD 2015+). Without it, Status says so and only the feed is drawn. Apple Silicon Macs use NEON.
+
+**Tips:**
+- Faces that are small or far away: set **Detect Size → 640**.
+- Boxes appearing on things that aren't faces: raise **Min Confidence**.
+- For a steadier look: raise **Smoothing**. For boxes that hold through a quick head turn: raise **Hold Time**.
 
 ## IMAG Key
 
@@ -166,7 +193,7 @@ Colour controls are hue / saturation / brightness, shown in Arena as a rainbow c
 
 ## Colour controls
 
-Every colour control in every plugin is **hue / saturation / brightness**, which Arena shows as a rainbow colour picker with saturation and brightness. This covers IMAG Looks (tracking squares, echo A/B, ASCII, dual tone), IMAG Blob (squares, lines, numbers, feed colours) and IMAG Key (key colour, background colour). Plugins convert to RGB internally.
+Every colour control in every plugin is **hue / saturation / brightness**, which Arena shows as a rainbow colour picker with saturation and brightness. This covers IMAG Looks (tracking squares, echo A/B, ASCII, dual tone), IMAG Blob and IMAG Face (squares/boxes, lines, numbers, feed colours) and IMAG Key (key colour, background colour). Plugins convert to RGB internally.
 
 ## Build
 
@@ -177,4 +204,4 @@ cmake -S . -B build -A x64
 cmake --build build --config Release
 ```
 
-Copy `ImagFX.dll`, `ImagFlame.dll` and `ImagLooks.dll` from `build\Release\` to `Documents\Resolume Arena\Extra Effects\` and restart Arena. macOS and Linux steps are in `docs/ANALYSIS.md`.
+Copy the six `.dll` files (`ImagFX`, `ImagFlame`, `ImagLooks`, `ImagKey`, `ImagBlob`, `ImagFace`) from `build\Release\` to `Documents\Resolume Arena\Extra Effects\` and restart Arena. macOS and Linux steps are in `docs/ANALYSIS.md`.
