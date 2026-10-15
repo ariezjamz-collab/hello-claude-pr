@@ -109,7 +109,8 @@ static FF_Main_FuncPtr LoadPlugin( const char* path )
 
 // A stand-in for a stage camera: dark gradient background, a bright "performer" silhouette that sways,
 // and a moving light beam, so time-based effects have something to act on.
-static void DrawCameraFrame( std::vector< unsigned char >& rgba, int frame )
+// With `keyed`, the background is transparent (premultiplied), as after background removal + Auto Mask.
+static void DrawCameraFrame( std::vector< unsigned char >& rgba, int frame, bool keyed )
 {
 	float t  = frame / 60.0f;
 	float cx = 0.5f + 0.18f * std::sin( t * 2.1f );
@@ -133,11 +134,20 @@ static void DrawCameraFrame( std::vector< unsigned char >& rgba, int frame )
 			g += 0.30f * beam;
 			b += 0.45f * beam;
 
+			float a = 1.0f;
+			if( keyed )
+			{
+				r = body * 0.85f;
+				g = body * 0.65f;
+				b = body * 0.55f;
+				a = body;
+			}
+
 			unsigned char* p = &rgba[ ( y * W + x ) * 4 ];
 			p[ 0 ]           = (unsigned char)( std::fmin( r, 1.0f ) * 255.0f );
 			p[ 1 ]           = (unsigned char)( std::fmin( g, 1.0f ) * 255.0f );
 			p[ 2 ]           = (unsigned char)( std::fmin( b, 1.0f ) * 255.0f );
-			p[ 3 ]           = 255;
+			p[ 3 ]           = (unsigned char)( a * 255.0f );
 		}
 	}
 }
@@ -162,6 +172,13 @@ static std::map< std::string, std::map< std::string, float > > Presets()
 		{ "trails", { { "Red Delay", 0.0f }, { "Chroma Split", 0.0f }, { "Trails", 0.85f }, { "Trail Zoom", 0.62f }, { "Trail Hue", 0.15f } } },
 		{ "sheen_static", { { "Red Delay", 0.0f }, { "Sheen", 0.9f }, { "Sheen Width", 0.25f }, { "Static", 0.35f }, { "Scanlines", 0.5f } } },
 		{ "glitch_warp", { { "Glitch", 1.0f }, { "Warp", 0.6f }, { "Warp Scale", 0.4f }, { "Beat Rate", 2.0f } } },
+		// IMAG Flame. "_keyed" is not a plugin parameter: it switches the test camera to a transparent background.
+		{ "flame_motion", { { "Subject Source", 0.0f }, { "Flame Amount", 0.8f }, { "Burn Edges", 0.3f } } },
+		{ "flame_keyed", { { "_keyed", 1.0f }, { "Subject Source", 1.0f }, { "Burn Edges", 0.7f }, { "Tracker HUD", 1.0f } } },
+		{ "flame_disperse", { { "Subject Source", 0.0f }, { "Dispersion", 0.9f }, { "Disperse Mode", 1.0f }, { "Heat Haze", 0.9f },
+							  { "Distortion", 0.3f }, { "Tracker HUD", 3.0f }, { "Mono Tint", 1.0f } } },
+		{ "flame_blue_track", { { "Subject Source", 0.0f }, { "Flame Color", 1.0f }, { "Track Focus", 0.8f }, { "Tracker HUD", 2.0f },
+								{ "Beat Pulse", 0.7f }, { "Wind", 0.75f } } },
 		{ "everything", { { "Red Delay", 0.3f }, { "Blue Delay", 0.1f }, { "Chroma Split", 0.3f }, { "Trails", 0.7f }, { "Trail Zoom", 0.58f },
 						  { "Trail Hue", 0.1f }, { "Glitch", 0.6f }, { "Sheen", 0.6f }, { "Static", 0.15f }, { "Scanlines", 0.3f } } },
 	};
@@ -216,8 +233,14 @@ int main( int argc, char** argv )
 		paramIndex[ (const char*)plugMain( FF_GET_PARAMETER_NAME, in, nullptr ).PointerValue ] = i;
 	}
 	std::printf( "%u parameters\n", numParams );
+	bool keyed = false;
 	for( auto& kv : presets[ preset ] )
 	{
+		if( kv.first == "_keyed" )
+		{
+			keyed = kv.second > 0.5f;
+			continue;
+		}
 		if( !paramIndex.count( kv.first ) )
 		{
 			std::fprintf( stderr, "plugin has no parameter '%s'\n", kv.first.c_str() );
@@ -253,7 +276,7 @@ int main( int argc, char** argv )
 
 	for( int frame = 0; frame < frames; ++frame )
 	{
-		DrawCameraFrame( pixels, frame );
+		DrawCameraFrame( pixels, frame, keyed );
 		glBindTexture( GL_TEXTURE_2D, inputTex );
 		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data() );
 		glBindTexture( GL_TEXTURE_2D, 0 );

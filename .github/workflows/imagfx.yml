@@ -37,26 +37,28 @@ jobs:
           cmake -S imagfx -B build -A x64 -DFFGL_SDK_DIR="$GITHUB_WORKSPACE/ffgl-sdk"
           cmake --build build --config Release
           mkdir -p dist
-          cp build/Release/ImagFX.dll dist/
+          cp build/Release/ImagFX.dll build/Release/ImagFlame.dll dist/
 
       - name: Build (macOS, universal)
         if: matrix.name == 'macos'
         run: |
           cmake -S imagfx -B build -G Xcode -DFFGL_SDK_DIR="$GITHUB_WORKSPACE/ffgl-sdk"
           cmake --build build --config Release
-          codesign --force --deep --sign - build/Release/ImagFX.bundle
-          lipo -info build/Release/ImagFX.bundle/Contents/MacOS/ImagFX
           mkdir -p dist
-          cp -R build/Release/ImagFX.bundle dist/
+          for PLUGIN in ImagFX ImagFlame; do
+            codesign --force --deep --sign - build/Release/$PLUGIN.bundle
+            lipo -info build/Release/$PLUGIN.bundle/Contents/MacOS/$PLUGIN
+            cp -R build/Release/$PLUGIN.bundle dist/
+          done
 
       - name: Package
         shell: bash
         run: |
           cd dist
           if [ "${{ matrix.name }}" = "windows" ]; then
-            7z a ../ImagFX-windows-x64.zip ImagFX.dll
+            7z a ../ImagFX-windows-x64.zip ImagFX.dll ImagFlame.dll
           else
-            ditto -c -k --keepParent ImagFX.bundle ../ImagFX-macos-universal.zip
+            zip -r -y ../ImagFX-macos-universal.zip ImagFX.bundle ImagFlame.bundle
           fi
 
       - uses: actions/upload-artifact@v4
@@ -81,5 +83,5 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "IMAG FX build ${GITHUB_RUN_NUMBER}" \
-            --notes "Resolume FFGL effect. Windows: copy ImagFX.dll to Documents/Resolume Arena/Extra Effects. macOS: unzip, copy ImagFX.bundle to Documents/Resolume Arena/Extra Effects, then run: xattr -dr com.apple.quarantine ImagFX.bundle. Restart Arena." \
+            --notes "Two Resolume FFGL effects: IMAG FX (glitch looks) and IMAG Flame (monochrome camera, tracked flame trails, heat haze, dispersion). Windows: copy ImagFX.dll and ImagFlame.dll to Documents/Resolume Arena/Extra Effects. macOS: unzip, copy both .bundle folders to Documents/Resolume Arena/Extra Effects, then run: xattr -dr com.apple.quarantine ImagFX.bundle ImagFlame.bundle. Restart Arena." \
             --prerelease

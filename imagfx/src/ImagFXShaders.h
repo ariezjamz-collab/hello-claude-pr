@@ -1,59 +1,10 @@
 #pragma once
-
-// All three passes share one vertex shader. `uv` is the normalised 0..1 coordinate used for our own
-// render targets; `inUV` is scaled by MaxUV because the host's input texture may be padded.
-static const char kVertexShader[] = R"(#version 410 core
-uniform vec2 MaxUV;
-
-layout( location = 0 ) in vec4 vPosition;
-layout( location = 1 ) in vec2 vUV;
-
-out vec2 uv;
-out vec2 inUV;
-
-void main()
-{
-	gl_Position = vPosition;
-	uv          = vUV;
-	inUV        = vUV * MaxUV;
-}
-)";
-
-// Pass 1: copy the host input into the current slot of the frame-history ring buffer.
-static const char kCopyFragmentShader[] = R"(#version 410 core
-uniform sampler2D InputTexture;
-
-in vec2 uv;
-in vec2 inUV;
-out vec4 fragColor;
-
-void main()
-{
-	fragColor = texture( InputTexture, inUV );
-}
-)";
-
-// Shared helpers for passes 2 and 3. hash12 is Dave Hoskins' "Hash without Sine" (MIT licence).
-#define IMAGFX_GLSL_COMMON                                                                         \
-	"float hash12( vec2 p )\n"                                                                     \
-	"{\n"                                                                                          \
-	"	vec3 p3 = fract( vec3( p.xyx ) * 0.1031 );\n"                                              \
-	"	p3 += dot( p3, p3.yzx + 33.33 );\n"                                                        \
-	"	return fract( ( p3.x + p3.y ) * p3.z );\n"                                                 \
-	"}\n"                                                                                          \
-	"float vnoise( vec2 p )\n"                                                                     \
-	"{\n"                                                                                          \
-	"	vec2 i = floor( p );\n"                                                                    \
-	"	vec2 f = fract( p );\n"                                                                    \
-	"	vec2 u = f * f * ( 3.0 - 2.0 * f );\n"                                                     \
-	"	return mix( mix( hash12( i ), hash12( i + vec2( 1, 0 ) ), u.x ),\n"                        \
-	"	            mix( hash12( i + vec2( 0, 1 ) ), hash12( i + vec2( 1, 1 ) ), u.x ), u.y );\n" \
-	"}\n"
+#include "ShaderCommon.h"
 
 // Pass 2: the "temporal" stage. Builds the image that is fed back into itself next frame.
 //   glitch slices -> noise warp -> per-channel time delay + radial chroma split -> feedback trails
 static const char kTrailFragmentShader[] = "#version 410 core\n"
-	IMAGFX_GLSL_COMMON
+	GLSL_NOISE_COMMON
 	R"(
 uniform sampler2D CurrentTex;  // unit 0: this frame
 uniform sampler2D DelayRTex;   // unit 1: frame used for the red channel
@@ -148,7 +99,7 @@ void main()
 // Pass 3: the "surface" stage. Effects that must NOT smear into the trails: sheen sweep, scanlines,
 // static. Then dry/wet mix against the untouched input. Writes premultiplied output to the host.
 static const char kFinishFragmentShader[] = "#version 410 core\n"
-	IMAGFX_GLSL_COMMON
+	GLSL_NOISE_COMMON
 	R"(
 uniform sampler2D TrailTex;    // unit 0: output of pass 2
 uniform sampler2D OriginalTex; // unit 1: this frame, untouched
