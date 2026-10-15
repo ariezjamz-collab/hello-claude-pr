@@ -1,15 +1,22 @@
-// Minimal FFGL host for testing the plugin without Resolume (Linux, GLX on Xvfb).
+// Minimal FFGL host for testing the plugin without Resolume: GLX on Linux (e.g. under Xvfb), WGL on
+// Windows (also runs under Wine, which is how the Windows .dll is tested from Linux).
 //
 // It loads the plugin through plugMain exactly like a host does, feeds it a synthetic animated "camera"
 // frame, drives SetTime / SetBeatInfo at 120 BPM, checks the plugin leaves GL state as FFGL requires,
 // and writes selected output frames as PPM images.
 //
-//   headless_host <plugin.so> <out_dir> <preset> [frames]
+//   headless_host <plugin.so|plugin.dll> <out_dir> <preset> [frames]
 #include <GL/glew.h>
-#include <GL/glx.h>
-#include <dlfcn.h>
+#ifdef _WIN32
+#	include <windows.h>
+#	include <GL/wglew.h>
+#else
+#	include <GL/glx.h>
+#	include <dlfcn.h>
+#endif
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <map>
 #include <string>
@@ -18,6 +25,49 @@
 
 static const int W = 640, H = 360;
 
+#ifdef _WIN32
+static bool CreateContext()
+{
+	WNDCLASSA wc     = {};
+	wc.lpfnWndProc   = DefWindowProcA;
+	wc.hInstance     = GetModuleHandleA( nullptr );
+	wc.lpszClassName = "ffgl_test_host";
+	RegisterClassA( &wc );
+	HWND window = CreateWindowA( wc.lpszClassName, "", WS_OVERLAPPEDWINDOW, 0, 0, 16, 16, nullptr, nullptr, wc.hInstance, nullptr );
+	HDC dc      = GetDC( window );
+
+	PIXELFORMATDESCRIPTOR pfd = { sizeof( pfd ), 1, PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER, PFD_TYPE_RGBA, 32 };
+	SetPixelFormat( dc, ChoosePixelFormat( dc, &pfd ), &pfd );
+	HGLRC legacy = wglCreateContext( dc );//Needed first, to look up wglCreateContextAttribsARB.
+	wglMakeCurrent( dc, legacy );
+	auto createContext = (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress( "wglCreateContextAttribsARB" );
+	if( !createContext )
+		return false;
+	int ctxAttribs[] = { WGL_CONTEXT_MAJOR_VERSION_ARB, 4, WGL_CONTEXT_MINOR_VERSION_ARB, 1,
+						 WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB, 0 };
+	HGLRC context = createContext( dc, nullptr, ctxAttribs );
+	wglMakeCurrent( nullptr, nullptr );
+	wglDeleteContext( legacy );
+	if( !context || !wglMakeCurrent( dc, context ) )
+		return false;
+	glewExperimental = GL_TRUE;
+	if( glewInit() != GLEW_OK )
+		return false;
+	while( glGetError() != GL_NO_ERROR ) {}
+	return true;
+}
+
+static FF_Main_FuncPtr LoadPlugin( const char* path )
+{
+	HMODULE lib = LoadLibraryA( path );
+	if( !lib )
+	{
+		std::fprintf( stderr, "LoadLibrary failed: %lu\n", GetLastError() );
+		return nullptr;
+	}
+	return (FF_Main_FuncPtr)GetProcAddress( lib, "plugMain" );
+}
+#else
 typedef GLXContext ( *CreateContextAttribs )( Display*, GLXFBConfig, GLXContext, Bool, const int* );
 
 static bool CreateContext()
@@ -44,6 +94,18 @@ static bool CreateContext()
 	while( glGetError() != GL_NO_ERROR ) {}//glewInit may leave a harmless GL_INVALID_ENUM in core profiles.
 	return true;
 }
+
+static FF_Main_FuncPtr LoadPlugin( const char* path )
+{
+	void* lib = dlopen( path, RTLD_NOW );
+	if( !lib )
+	{
+		std::fprintf( stderr, "dlopen: %s\n", dlerror() );
+		return nullptr;
+	}
+	return (FF_Main_FuncPtr)dlsym( lib, "plugMain" );
+}
+#endif
 
 // A stand-in for a stage camera: dark gradient background, a bright "performer" silhouette that sways,
 // and a moving light beam, so time-based effects have something to act on.
@@ -83,6 +145,8 @@ static void DrawCameraFrame( std::vector< unsigned char >& rgba, int frame )
 static void WritePPM( const std::string& path, const std::vector< unsigned char >& rgba )
 {
 	FILE* f = std::fopen( path.c_str(), "wb" );
+	if( !f )
+		return;
 	std::fprintf( f, "P6\n%d %d\n255\n", W, H );
 	for( int y = H - 1; y >= 0; --y )//GL rows are bottom-up.
 		for( int x = 0; x < W; ++x )
@@ -125,14 +189,10 @@ int main( int argc, char** argv )
 	}
 	std::printf( "GL: %s / %s\n", glGetString( GL_RENDERER ), glGetString( GL_VERSION ) );
 
-	void* lib = dlopen( argv[ 1 ], RTLD_NOW );
-	if( !lib )
-	{
-		std::fprintf( stderr, "dlopen: %s\n", dlerror() );
+	FF_Main_FuncPtr plugMain = LoadPlugin( argv[ 1 ] );
+	if( !plugMain )
 		return 1;
-	}
-	auto plugMain = (FF_Main_FuncPtr)dlsym( lib, "plugMain" );
-	FFMixed in, out;
+	FFMixed in;
 
 	in.UIntValue = 0;
 	if( plugMain( FF_INITIALISE_V2, in, nullptr ).UIntValue != FF_SUCCESS )

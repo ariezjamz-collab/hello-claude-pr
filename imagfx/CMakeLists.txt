@@ -42,7 +42,12 @@ elseif(APPLE)
     set_target_properties(ImagFX PROPERTIES
         BUNDLE TRUE
         BUNDLE_EXTENSION bundle
-        OSX_ARCHITECTURES "arm64;x86_64")  # Arena runs natively on Apple Silicon
+        MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Info.plist.in
+        MACOSX_BUNDLE_GUI_IDENTIFIER com.imagfx.plugin
+        MACOSX_BUNDLE_BUNDLE_VERSION 0.1.0
+        MACOSX_BUNDLE_SHORT_VERSION_STRING 0.1.0
+        OSX_ARCHITECTURES "arm64;x86_64"  # Arena runs natively on Apple Silicon
+        OSX_DEPLOYMENT_TARGET 10.13)
 else()
     # Resolume doesn't run on Linux; this target exists so the plugin can be built and tested headless.
     find_package(GLEW REQUIRED)
