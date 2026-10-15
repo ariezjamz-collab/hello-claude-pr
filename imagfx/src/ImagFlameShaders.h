@@ -213,90 +213,10 @@ vec3 spectrum( float t )// 0 red .. 1 violet
 	float h = t * 0.8 * 6.0;
 	return clamp( vec3( abs( h - 3.0 ) - 1.0, 2.0 - abs( h - 2.0 ), 2.0 - abs( h - 4.0 ) ), 0.0, 1.0 );
 }
-
-vec3 flameColor( float h )
-{
-	h = clamp( h, 0.0, 1.5 );
-	float lo  = smoothstep( 0.0, 0.5, h );
-	float mid = smoothstep( 0.25, 0.85, h );
-	float hi  = smoothstep( 0.6, 1.2, h );
-	vec3 c;
-	if( Palette == 0 )
-		c = vec3( lo, mid, hi );// fire
-	else if( Palette == 1 )
-		c = vec3( mid * 0.35 + hi * 0.65, mid * 0.75 + hi * 0.25, lo * 1.3 );// blue, with a cyan-white core
-	else if( Palette == 2 )
-		c = vec3( mid, lo, hi * 0.6 );// toxic green
-	else if( Palette == 3 )
-		c = vec3( smoothstep( 0.0, 0.6, h ), hi, smoothstep( 0.0, 0.4, h ) );// violet
-	else
-		c = vec3( smoothstep( 0.0, 0.8, h ) );// white
-	return c * smoothstep( 0.03, 0.2, h );
-}
-
-float hudLine( float distance, float px )
-{
-	return 1.0 - smoothstep( px * 0.5, px * 1.5, distance );
-}
-
-float segmentDistance( vec2 p, vec2 a, vec2 b )
-{
-	vec2 ab = b - a;
-	float t = clamp( dot( p - a, ab ) / max( dot( ab, ab ), 1e-6 ), 0.0, 1.0 );
-	return length( p - a - ab * t );
-}
-
-// A grid cell carries a tracking square if the subject's outline passes through it (partial coverage),
-// plus a sparse random sprinkle of fully covered cells, so squares trace the silhouette instead of
-// tiling the body.
-bool squareCell( vec4 m, ivec2 c )
-{
-	return m.z > 0.08 && ( m.z < 0.85 || hash12( vec2( c ) * 1.37 ) < 0.15 );
-}
-
-// Small squares, each centred on the subject's centroid within its grid cell. With links, neighbouring
-// square cells are joined by thin lines.
-float drawSquares( bool links )
-{
-	int cells    = 256 >> GridLevel;
-	vec2 cellPx  = Resolution / float( cells );
-	ivec2 cell   = ivec2( floor( uv * float( cells ) ) );
-	vec2 pixel   = uv * Resolution;
-	float px     = 1.0;
-	float result = 0.0;
-	for( int y = -1; y <= 1; ++y )
-		for( int x = -1; x <= 1; ++x )
-		{
-			ivec2 c = cell + ivec2( x, y );
-			if( any( lessThan( c, ivec2( 0 ) ) ) || any( greaterThanEqual( c, ivec2( cells ) ) ) )
-				continue;
-			vec4 m = texelFetch( MomentTex, c, GridLevel );
-			if( !squareCell( m, c ) )
-				continue;
-			vec2 centre    = m.xy / m.z * Resolution;
-			float halfSize = min( SquareSize, 0.42 * min( cellPx.x, cellPx.y ) );
-			vec2 d      = abs( pixel - centre );
-			float box   = max( d.x, d.y );
-			result      = max( result, hudLine( abs( box - halfSize ), px ) );
-			result      = max( result, 1.0 - smoothstep( 0.8, 1.6, length( pixel - centre ) ) );// centre dot
-			if( links )
-			{
-				for( int n = 0; n < 2; ++n )
-				{
-					ivec2 nc = c + ( n == 0 ? ivec2( 1, 0 ) : ivec2( 0, 1 ) );
-					if( any( greaterThanEqual( nc, ivec2( cells ) ) ) )
-						continue;
-					vec4 nm = texelFetch( MomentTex, nc, GridLevel );
-					if( !squareCell( nm, nc ) )
-						continue;
-					vec2 other = nm.xy / nm.z * Resolution;
-					result     = max( result, 0.55 * hudLine( segmentDistance( pixel, centre, other ), px * 0.7 ) );
-				}
-			}
-		}
-	return result;
-}
-
+)"
+	GLSL_FLAME_PALETTE
+	GLSL_TRACKING_SQUARES
+	R"(
 float drawHud( vec4 state )
 {
 	if( Hud == 1 || Hud == 2 )
@@ -361,7 +281,7 @@ void main()
 	vec4 col = vec4( sum / weight, alpha );
 
 	// Flames, optionally hidden where the subject is so they appear to burn behind them.
-	vec3 fire = flameColor( heat ) * Glow;
+	vec3 fire = flamePalette( heat, Palette ) * Glow;
 	fire *= 1.0 - Behind * texture( MaskTex, uv ).r;
 	col.rgb = 1.0 - ( 1.0 - col.rgb ) * ( 1.0 - clamp( fire, 0.0, 1.0 ) );
 	col.a   = max( col.a, clamp( max( fire.r, max( fire.g, fire.b ) ), 0.0, 1.0 ) );

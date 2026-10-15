@@ -300,3 +300,253 @@ void main()
 	fragColor  = mixed;
 }
 )";
+
+// Echo history: stores this frame's subject (luma inside the mask, and the mask) at mask resolution.
+static const char kEchoStoreFragmentShader[] = R"(#version 410 core
+uniform sampler2D FrameTex;
+uniform sampler2D MaskTex;
+
+in vec2 uv;
+in vec2 inUV;
+out vec4 fragColor;
+
+void main()
+{
+	vec4 c   = texture( FrameTex, uv );
+	float m  = texture( MaskTex, uv ).r;
+	float l  = dot( c.rgb, vec3( 0.2126, 0.7152, 0.0722 ) );
+	fragColor = vec4( l * m, m, 0.0, 1.0 );
+}
+)";
+
+// Overlay stack drawn over whichever look is active, in this order:
+//   distortion -> dispersion -> depth -> coloured echoes -> flames -> dual tone -> ASCII -> tracking squares
+// then dry/wet against the original camera. Premultiplied in and out.
+static const char kLooksCompositeFragmentShader[] = "#version 410 core\n"
+	GLSL_NOISE_COMMON
+	R"(
+uniform sampler2D LookTex;   // unit 0: the active look
+uniform sampler2D FrameTex;  // unit 1: original camera
+uniform sampler2D MaskTex;   // unit 2: subject mask (half resolution)
+uniform sampler2D HeatTex;   // unit 3: flame heat field
+uniform sampler2D MomentTex; // unit 4: mask moments, mipmapped
+uniform sampler2D EchoTex0;  // units 5-8: past subject frames, newest first
+uniform sampler2D EchoTex1;
+uniform sampler2D EchoTex2;
+uniform sampler2D EchoTex3;
+
+uniform vec2 Resolution;
+uniform vec2 MaskTexel;
+uniform float Time;
+uniform float Mix;
+
+uniform float Distortion;
+uniform float Dispersion;
+uniform float Depth;
+uniform float EchoLevel;
+uniform int EchoCount;
+uniform vec3 EchoColorA;
+uniform vec3 EchoColorB;
+uniform float Flames;
+uniform int Palette;
+uniform float DualTone;
+uniform vec3 DualDark;
+uniform vec3 DualLight;
+uniform int AsciiArea;     // 0 off, 1 subject, 2 background, 3 whole frame
+uniform float AsciiSize;   // cell height in pixels
+uniform vec3 AsciiColor;
+uniform int Squares;       // 0 off, 1 squares, 2 squares + lines
+uniform int GridLevel;
+uniform float SquareSize;
+uniform vec3 SquareColor;
+
+in vec2 uv;
+in vec2 inUV;
+out vec4 fragColor;
+)"
+	GLSL_FLAME_PALETTE
+	GLSL_TRACKING_SQUARES
+	R"(
+// 4x6 glyphs ordered from empty to dense; bit (row * 4 + column) is ink, row 0 at the top.
+const int kGlyphs[ 11 ] = int[]( 0, 2097152, 131104, 1792, 10016, 28784, 432480, 337701, 719610, 14492859, 14802326 );
+
+float luma( vec3 c )
+{
+	return dot( c, vec3( 0.2126, 0.7152, 0.0722 ) );
+}
+
+float mask( vec2 p )
+{
+	return texture( MaskTex, p ).r;
+}
+
+vec3 spectrum( float t )// 0 red .. 1 violet
+{
+	float h = t * 0.8 * 6.0;
+	return clamp( vec3( abs( h - 3.0 ) - 1.0, 2.0 - abs( h - 2.0 ), 2.0 - abs( h - 4.0 ) ), 0.0, 1.0 );
+}
+
+// Separate samplers and a branch instead of a sampler array: older drivers handle this more reliably.
+vec2 echoSample( int i, vec2 p )
+{
+	if( i == 0 )
+		return texture( EchoTex0, p ).rg;
+	if( i == 1 )
+		return texture( EchoTex1, p ).rg;
+	if( i == 2 )
+		return texture( EchoTex2, p ).rg;
+	return texture( EchoTex3, p ).rg;
+}
+
+vec3 screen( vec3 a, vec3 b )
+{
+	return 1.0 - ( 1.0 - a ) * ( 1.0 - clamp( b, 0.0, 1.0 ) );
+}
+
+void main()
+{
+	vec2 px      = 1.0 / Resolution;
+	float aspect = Resolution.x / Resolution.y;
+	vec2 q       = uv * vec2( aspect, 1.0 );
+
+	// Subject centre from the 1x1 moments level; used to centre dispersion.
+	vec4 top      = texelFetch( MomentTex, ivec2( 0 ), 8 );
+	vec2 centre   = top.z > 1e-4 ? top.xy / top.z : vec2( 0.5 );
+
+	// Distortion: noise warp everywhere, plus heat haze where the flames are.
+	float heat  = Flames > 0.0 ? texture( HeatTex, uv ).r : 0.0;
+	vec2 offset = vec2( 0.0 );
+	if( Distortion > 0.0 )
+	{
+		vec2 w = q * 4.0 + vec2( Time * 0.3, -Time * 0.25 );
+		offset += ( vec2( vnoise( w ), vnoise( w + 7.3 ) ) - 0.5 ) * Distortion * 0.07;
+	}
+	if( heat > 0.0 )
+	{
+		vec2 shimmer = vec2( vnoise( q * 30.0 + vec2( 0.0, -Time * 4.0 ) ), vnoise( q * 30.0 + vec2( 9.1, -Time * 4.0 ) ) ) - 0.5;
+		offset += shimmer * heat * 0.02 * Flames;
+	}
+	vec2 p = uv + offset;
+
+	// Dispersion: seven spectral taps spread outward from the subject.
+	vec4 col;
+	if( Dispersion > 0.0 )
+	{
+		vec2 dir    = ( p - centre ) * Dispersion * 0.08;
+		vec3 sum    = vec3( 0.0 );
+		vec3 weight = vec3( 0.0 );
+		float alpha = 0.0;
+		for( int i = 0; i < 7; ++i )
+		{
+			float t  = float( i ) / 6.0;
+			vec3 w   = spectrum( t );
+			vec4 tap = texture( LookTex, p + dir * ( t - 0.5 ) );
+			sum += tap.rgb * w;
+			weight += w;
+			alpha = max( alpha, tap.a );
+		}
+		col = vec4( sum / weight, alpha );
+	}
+	else
+		col = texture( LookTex, p );
+
+	float subject = mask( p );
+
+	// Depth: background defocuses and dims, and the subject extrudes down-right as a dimmed copy of
+	// itself, so it reads as 3D on dark and bright backgrounds alike.
+	if( Depth > 0.0 )
+	{
+		vec4 blur = vec4( 0.0 );
+		for( int i = 0; i < 8; ++i )
+		{
+			float a = float( i ) * 0.7853982;
+			blur += texture( LookTex, p + vec2( cos( a ), sin( a ) ) * px * Depth * 10.0 );
+		}
+		blur /= 8.0;
+		col = mix( col, blur * ( 1.0 - 0.45 * Depth ), ( 1.0 - subject ) * Depth );
+		float extrude  = 0.0;
+		vec3 extrudeCol = vec3( 0.0 );
+		for( int k = 1; k <= 8; ++k )
+		{
+			vec2 from  = p - vec2( 1.0, -1.0 ) * px * Depth * 3.0 * float( k );
+			float m    = mask( from ) * ( 1.0 - float( k ) / 9.0 );
+			if( m > extrude )
+			{
+				extrude    = m;
+				extrudeCol = texture( LookTex, from ).rgb;
+			}
+		}
+		float amount = extrude * ( 1.0 - subject ) * Depth;
+		col.rgb      = mix( col.rgb, extrudeCol * 0.35, amount );
+		col.a        = max( col.a, amount );
+	}
+
+	// Coloured echoes: the subject from earlier frames, each copy tinted along colour A -> colour B.
+	if( EchoLevel > 0.0 )
+	{
+		for( int i = 0; i < 4; ++i )
+		{
+			if( i >= EchoCount )
+				break;
+			vec2 e     = echoSample( i, p );// luma*mask, mask
+			float s    = e.y * ( 0.45 + 0.55 * e.x / max( e.y, 1e-3 ) );
+			float t    = EchoCount > 1 ? float( i ) / float( EchoCount - 1 ) : 0.0;
+			float fade = 1.0 - float( i ) / float( EchoCount + 1 );
+			vec3 tint  = mix( EchoColorA, EchoColorB, t );
+			float vis  = s * ( 1.0 - subject * 0.9 ) * EchoLevel * fade;
+			col.rgb    = screen( col.rgb, tint * vis );
+			col.a      = max( col.a, vis );
+		}
+	}
+
+	// Flames from the heat simulation.
+	if( Flames > 0.0 )
+	{
+		vec3 fire = flamePalette( heat, Palette ) * Flames * 1.6;
+		fire *= 1.0 - 0.4 * subject;// mostly behind the subject
+		col.rgb = screen( col.rgb, fire );
+		col.a   = max( col.a, clamp( max( fire.r, max( fire.g, fire.b ) ), 0.0, 1.0 ) );
+	}
+
+	// Dual tone: brightness mapped between two colours.
+	if( DualTone > 0.0 )
+	{
+		float l  = col.a > 0.0 ? luma( col.rgb ) / col.a : 0.0;
+		vec3 duo = mix( DualDark, DualLight, smoothstep( 0.0, 1.0, l ) ) * col.a;
+		col.rgb  = mix( col.rgb, duo, DualTone );
+	}
+
+	// ASCII: replace the chosen area with characters picked by brightness.
+	if( AsciiArea > 0 )
+	{
+		vec2 cell     = vec2( AsciiSize * 4.0 / 6.0, AsciiSize );
+		vec2 pixel    = p * Resolution;
+		vec2 cellId   = floor( pixel / cell );
+		vec2 cellUV   = ( cellId + 0.5 ) * cell / Resolution;
+		float inCell  = mask( cellUV );
+		float area    = AsciiArea == 1 ? inCell : ( AsciiArea == 2 ? 1.0 - inCell : 1.0 );
+		if( area > 0.5 )
+		{
+			vec4 c        = texture( LookTex, cellUV );
+			float bright  = c.a > 0.0 ? luma( c.rgb ) / c.a : 0.0;
+			int glyph     = int( clamp( bright, 0.0, 0.999 ) * 11.0 );
+			vec2 local    = fract( pixel / cell );
+			ivec2 bit     = ivec2( floor( local.x * 4.0 ), floor( ( 1.0 - local.y ) * 6.0 ) );
+			float ink     = float( ( kGlyphs[ glyph ] >> ( bit.y * 4 + bit.x ) ) & 1 );
+			col           = vec4( AsciiColor * ink, 1.0 );
+		}
+	}
+
+	if( Squares > 0 )
+	{
+		float line = drawSquares( Squares == 2 );
+		col.rgb    = mix( col.rgb, SquareColor, line );
+		col.a      = max( col.a, line );
+	}
+
+	vec4 original = texture( FrameTex, uv );
+	col           = mix( original, clamp( col, 0.0, 1.0 ), Mix );
+	col.rgb       = min( col.rgb, vec3( col.a ) );
+	fragColor     = col;
+}
+)";

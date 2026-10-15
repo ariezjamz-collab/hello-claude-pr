@@ -194,6 +194,13 @@ static std::map< std::string, std::map< std::string, float > > Presets()
 		{ "look_6", { { "Look", 6.0f } } }, { "look_7", { { "Look", 7.0f } } }, { "look_8", { { "Look", 8.0f } } },
 		{ "look_9", { { "Look", 9.0f } } }, { "look_10", { { "Look", 10.0f } } }, { "look_11", { { "Look", 11.0f } } },
 		{ "look_12", { { "Look", 12.0f } } },
+		// IMAG Looks overlays.
+		{ "looks_track_echo", { { "Look", 2.0f }, { "Tracking", 1.0f }, { "Echo Level", 0.9f }, { "Echo Copies", 2.0f }, { "Echo Delay", 0.5f } } },
+		{ "looks_ascii", { { "_keyed", 1.0f }, { "Subject Source", 1.0f }, { "Look", 4.0f }, { "ASCII", 1.0f }, { "ASCII Size", 0.15f } } },
+		{ "looks_levels", { { "_keyed", 1.0f }, { "Subject Source", 1.0f }, { "Look", 0.0f }, { "Distortion", 0.3f }, { "Dispersion", 0.6f },
+							{ "Flames", 0.7f }, { "Depth", 0.8f } } },
+		{ "looks_depth", { { "_keyed", 1.0f }, { "Subject Source", 1.0f }, { "Look", 2.0f }, { "Depth", 1.0f } } },
+		{ "looks_dualtone", { { "Look", 9.0f }, { "Dual Tone", 1.0f }, { "Tracking", 2.0f }, { "Echo Level", 0.8f } } },
 		{ "everything", { { "Red Delay", 0.3f }, { "Blue Delay", 0.1f }, { "Chroma Split", 0.3f }, { "Trails", 0.7f }, { "Trail Zoom", 0.58f },
 						  { "Trail Hue", 0.1f }, { "Glitch", 0.6f }, { "Sheen", 0.6f }, { "Static", 0.15f }, { "Scanlines", 0.3f } } },
 	};
