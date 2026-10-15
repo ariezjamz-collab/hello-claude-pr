@@ -115,6 +115,7 @@ struct CameraOptions
 	bool greenScreen = false;// performer in front of a slightly uneven green screen
 	int emptyFrames  = 0;    // the first frames show the empty stage, as when learning a background plate
 	int saveEvery    = 0;    // also save every Nth frame (for checking motion over time)
+	int toggleAt     = 0;    // switch every plugin's "Effect On" off at this frame and back on at twice it
 };
 
 static void DrawCameraFrame( std::vector< unsigned char >& rgba, int frame, const CameraOptions& options )
@@ -230,6 +231,8 @@ static std::map< std::string, std::map< std::string, float > > Presets()
 		{ "blob_ascii", { { "Feed", 3.0f }, { "Lines", 2.0f }, { "Numbers", 3.0f } } },
 		{ "blob_halftone", { { "Feed", 4.0f }, { "Number Size", 0.6f }, { "Square Size", 0.8f } } },
 		{ "blob_keyed", { { "_empty_frames", 40.0f }, { "Detect", 1.0f }, { "Grid", 1.0f } } },
+		// "Effect On" toggle: off from frame 20, back on at 40 (checks pass-through and a clean restart).
+		{ "toggle", { { "_toggle", 20.0f } } },
 		{ "everything", { { "Red Delay", 0.3f }, { "Blue Delay", 0.1f }, { "Chroma Split", 0.3f }, { "Trails", 0.7f }, { "Trail Zoom", 0.58f },
 						  { "Trail Hue", 0.1f }, { "Glitch", 0.6f }, { "Sheen", 0.6f }, { "Static", 0.15f }, { "Scanlines", 0.3f } } },
 	};
@@ -317,6 +320,8 @@ int main( int argc, char** argv )
 			camera.emptyFrames = (int)kv.second;
 		else if( kv.first == "_save_every" )
 			camera.saveEvery = (int)kv.second;
+		else if( kv.first == "_toggle" )
+			camera.toggleAt = (int)kv.second;
 		else
 		{
 			bool found = false;
@@ -360,13 +365,42 @@ int main( int argc, char** argv )
 	for( LoadedPlugin& plugin : chain )
 		makeTarget( plugin.fbo, plugin.texture );
 
-	std::vector< unsigned char > pixels( W * H * 4 );
+	std::vector< unsigned char > pixels( W * H * 4 ), cameraPixels;
+	auto setEnabled = [ & ]( float value ) {
+		for( LoadedPlugin& plugin : chain )
+		{
+			if( !plugin.params.count( "Effect On" ) )
+				continue;
+			SetParameterStruct set;
+			set.ParameterNumber = plugin.params[ "Effect On" ];
+			std::memcpy( &set.NewParameterValue.UIntValue, &value, sizeof( float ) );
+			in.PointerValue = &set;
+			plugin.main( FF_SET_PARAMETER, in, plugin.instance );
+		}
+	};
+	auto allOff = [ & ]() {
+		for( LoadedPlugin& plugin : chain )
+		{
+			if( !plugin.params.count( "Effect On" ) )
+				return false;
+			in.UIntValue = plugin.params[ "Effect On" ];
+			const FFMixed value = plugin.main( FF_GET_PARAMETER, in, plugin.instance );
+			float f;
+			std::memcpy( &f, &value.UIntValue, sizeof( float ) );
+			if( f > 0.5f )
+				return false;
+		}
+		return true;
+	};
 	const float bpm = 120.0f;
 	int failures    = 0;
 
 	for( int frame = 0; frame < frames; ++frame )
 	{
+		if( camera.toggleAt > 0 && ( frame == camera.toggleAt || frame == 2 * camera.toggleAt ) )
+			setEnabled( frame == camera.toggleAt ? 0.0f : 1.0f );
 		DrawCameraFrame( pixels, frame, camera );
+		cameraPixels = pixels;
 		glBindTexture( GL_TEXTURE_2D, inputTex );
 		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data() );
 		glBindTexture( GL_TEXTURE_2D, 0 );
@@ -410,6 +444,21 @@ int main( int argc, char** argv )
 				++failures;
 			}
 			source = plugin.texture;
+		}
+
+		// Switched off, the chain must hand the camera through untouched.
+		if( allOff() )
+		{
+			glBindFramebuffer( GL_FRAMEBUFFER, chain.back().fbo );
+			glReadPixels( 0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data() );
+			int differing = 0;
+			for( size_t i = 0; i < pixels.size(); ++i )
+				differing += std::abs( (int)pixels[ i ] - (int)cameraPixels[ i ] ) > 1;
+			if( differing > 0 )
+			{
+				std::fprintf( stderr, "frame %d: effect off but %d values differ from the input\n", frame, differing );
+				++failures;
+			}
 		}
 
 		if( frame == frames - 1 || frame == frames / 2 || frame == frames / 2 + 7 || ( camera.saveEvery > 0 && frame % camera.saveEvery == 0 ) )

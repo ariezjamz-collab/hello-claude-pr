@@ -2,6 +2,7 @@
 #include "ImagLooksShaders.h"
 #include "ImagFlameShaders.h"//Mask, moments and fire passes are shared with IMAG Flame.
 #include "PluginLog.h"
+#include "PassThrough.h"
 #include "ColorUtil.h"
 #include <algorithm>
 #include <cmath>
@@ -13,6 +14,7 @@ namespace
 {
 enum ParamID : FFUInt32
 {
+	PID_ENABLED,
 	// Look
 	PID_MIX,
 	PID_LOOK,
@@ -108,6 +110,7 @@ ImagLooks::ImagLooks() :
 	SetMinInputs( 1 );
 	SetMaxInputs( 1 );
 
+	params[ PID_ENABLED ]      = 1.0f;
 	params[ PID_MIX ]          = 1.0f;
 	params[ PID_INTENSITY ]    = 0.85f;
 	params[ PID_CRUSH ]        = 0.15f;
@@ -151,6 +154,7 @@ ImagLooks::ImagLooks() :
 		}
 	};
 
+	SetParamInfo( PID_ENABLED, "Effect On", FF_TYPE_BOOLEAN, true );
 	SetParamInfof( PID_MIX, "Mix", FF_TYPE_STANDARD );
 	SetOptionParamInfo( PID_LOOK, "Look", kLookCount, 0.0f );
 	for( unsigned int i = 0; i < kLookCount; ++i )
@@ -385,6 +389,14 @@ FFResult ImagLooks::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 	if( pGL->numInputTextures < 1 || pGL->inputTextures[ 0 ] == nullptr )
 		return FF_FAIL;
 	const FFGLTextureStruct& input = *pGL->inputTextures[ 0 ];
+	if( params[ PID_ENABLED ] < 0.5f )
+	{
+		imag::PassThrough( copyShader, quad, input, currentViewport );
+		primeHistory = true;//start from a calm history when switched back on
+		lastHostTime = -1.0;
+		SetStatus( "Off" );
+		return FF_SUCCESS;
+	}
 	if( !EnsureTargets( (GLsizei)input.Width, (GLsizei)input.Height ) )
 		return FF_FAIL;
 

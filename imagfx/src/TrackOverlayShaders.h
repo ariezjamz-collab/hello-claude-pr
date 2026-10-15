@@ -1,7 +1,7 @@
 #pragma once
 #include "ShaderCommon.h"
 
-// IMAG Blob shaders. The mask and moments passes are shared with IMAG Flame (ImagFlameShaders.h).
+// Shaders for the tracking graphics and restyled feed shared by IMAG Blob and IMAG Face (TrackOverlay.h).
 //
 // Written to be conservative for every driver: one small program per feed mode (FEED_MODE is #defined
 // when compiling), glyphs come from a texture rather than a lookup table, and nothing indexes a vector

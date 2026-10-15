@@ -1,6 +1,7 @@
 #include "ImagFlame.h"
 #include "ImagFlameShaders.h"
 #include "PluginLog.h"
+#include "PassThrough.h"
 #include <algorithm>
 #include <cmath>
 
@@ -10,6 +11,7 @@ namespace
 {
 enum ParamID : FFUInt32
 {
+	PID_ENABLED,
 	PID_MIX,
 	PID_MONO,
 	PID_CONTRAST,
@@ -51,6 +53,7 @@ struct ParamDef
 };
 
 const std::vector< ParamDef > kParams = {
+	{ PID_ENABLED, "Effect On", FF_TYPE_BOOLEAN, 1.0f, {} },
 	{ PID_MIX, "Mix", FF_TYPE_STANDARD, 1.0f, {} },
 	{ PID_MONO, "Mono", FF_TYPE_STANDARD, 1.0f, {} },
 	{ PID_CONTRAST, "Contrast", FF_TYPE_STANDARD, 0.6f, {} },
@@ -121,6 +124,8 @@ ImagFlame::ImagFlame() :
 		}
 		else if( def.type == FF_TYPE_EVENT )
 			SetParamInfo( def.id, def.name, FF_TYPE_EVENT, false );
+		else if( def.type == FF_TYPE_BOOLEAN )
+			SetParamInfo( def.id, def.name, FF_TYPE_BOOLEAN, def.defaultValue > 0.5f );
 		else
 			SetParamInfof( def.id, def.name, def.type );
 	}
@@ -258,6 +263,14 @@ FFResult ImagFlame::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 		return FF_FAIL;
 
 	const FFGLTextureStruct& input = *pGL->inputTextures[ 0 ];
+	if( params[ PID_ENABLED ] < 0.5f )
+	{
+		imag::PassThrough( copyShader, quad, input, currentViewport );
+		resetRequested = true;//start from clean flames and history when switched back on
+		primeHistory   = true;
+		lastHostTime   = -1.0;
+		return FF_SUCCESS;
+	}
 	if( !EnsureTargets( (GLsizei)input.Width, (GLsizei)input.Height ) )
 		return FF_FAIL;
 	if( resetRequested )

@@ -1,6 +1,7 @@
 #include "ImagFX.h"
 #include "ImagFXShaders.h"
 #include "PluginLog.h"
+#include "PassThrough.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -9,6 +10,7 @@ using namespace ffglex;
 
 enum ParamID : FFUInt32
 {
+	PID_ENABLED,
 	PID_MIX,
 	PID_DELAY_R,
 	PID_DELAY_B,
@@ -58,6 +60,7 @@ ImagFX::ImagFX() :
 	SetMinInputs( 1 );
 	SetMaxInputs( 1 );
 
+	params[ PID_ENABLED ]      = 1.0f;
 	params[ PID_MIX ]          = 1.0f;
 	params[ PID_DELAY_R ]      = 0.2f;
 	params[ PID_CHROMA ]       = 0.15f;
@@ -71,6 +74,7 @@ ImagFX::ImagFX() :
 	params[ PID_BEAT_RATE ]    = 2.0f;
 	params[ PID_FREE_RATE ]    = 0.25f;
 
+	SetParamInfo( PID_ENABLED, "Effect On", FF_TYPE_BOOLEAN, true );
 	SetParamInfof( PID_MIX, "Mix", FF_TYPE_STANDARD );
 	SetParamInfof( PID_DELAY_R, "Red Delay", FF_TYPE_STANDARD );
 	SetParamInfof( PID_DELAY_B, "Blue Delay", FF_TYPE_STANDARD );
@@ -239,6 +243,13 @@ FFResult ImagFX::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 		return FF_FAIL;
 
 	const FFGLTextureStruct& input = *pGL->inputTextures[ 0 ];
+	if( params[ PID_ENABLED ] < 0.5f )
+	{
+		imag::PassThrough( copyShader, quad, input, currentViewport );
+		resetRequested = true;//start from clean trails when switched back on
+		lastHostTime   = -1.0;
+		return FF_SUCCESS;
+	}
 	if( !EnsureTargets( (GLsizei)input.Width, (GLsizei)input.Height ) )
 		return FF_FAIL;
 

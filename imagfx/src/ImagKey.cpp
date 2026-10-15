@@ -1,6 +1,7 @@
 #include "ImagKey.h"
 #include "ImagKeyShaders.h"
 #include "PluginLog.h"
+#include "PassThrough.h"
 #include "ColorUtil.h"
 #include <algorithm>
 #include <cmath>
@@ -11,6 +12,7 @@ namespace
 {
 enum ParamID : FFUInt32
 {
+	PID_ENABLED,
 	PID_MODE,
 	PID_LEARN,
 	PID_AUTO_UPDATE,
@@ -64,6 +66,7 @@ ImagKey::ImagKey() :
 	SetMinInputs( 1 );
 	SetMaxInputs( 1 );
 
+	params[ PID_ENABLED ]     = 1.0f;
 	params[ PID_AUTO_UPDATE ] = 0.2f;
 	params[ PID_THRESHOLD ]   = 0.25f;
 	params[ PID_SOFTNESS ]    = 0.15f;
@@ -90,6 +93,7 @@ ImagKey::ImagKey() :
 			SetParamGroup( id, name );
 	};
 
+	SetParamInfo( PID_ENABLED, "Effect On", FF_TYPE_BOOLEAN, true );
 	addOption( PID_MODE, "Key Mode", { "Difference (learn stage)", "Chroma (green/blue screen)", "Luma (bright subject)" } );
 	SetParamInfo( PID_LEARN, "Learn Background", FF_TYPE_EVENT, false );
 	SetParamInfof( PID_AUTO_UPDATE, "Auto Update", FF_TYPE_STANDARD );
@@ -214,6 +218,12 @@ FFResult ImagKey::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 	if( pGL->numInputTextures < 1 || pGL->inputTextures[ 0 ] == nullptr )
 		return FF_FAIL;
 	const FFGLTextureStruct& input = *pGL->inputTextures[ 0 ];
+	if( params[ PID_ENABLED ] < 0.5f )
+	{
+		imag::PassThrough( copyShader, quad, input, currentViewport );
+		SetStatus( "Off" );
+		return FF_SUCCESS;
+	}
 	if( !EnsureTargets( (GLsizei)input.Width, (GLsizei)input.Height ) )
 		return FF_FAIL;
 
