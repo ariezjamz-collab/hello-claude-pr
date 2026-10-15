@@ -5,7 +5,9 @@
 
 // Compiles a shader program and, if the driver rejects it, writes the driver's own error message to the
 // host's log (Resolume's log), so a failure on a user's GPU can be diagnosed instead of failing silently.
-inline bool CompileOrLog( ffglex::FFGLShader& shader, const char* vertex, const char* fragment, const char* plugin, const char* pass )
+// If `errorOut` is given, the same message is stored there too.
+inline bool CompileOrLog( ffglex::FFGLShader& shader, const char* vertex, const char* fragment, const char* plugin, const char* pass,
+						  std::string* errorOut = nullptr )
 {
 	if( shader.Compile( vertex, fragment ) )
 		return true;
@@ -34,5 +36,7 @@ inline bool CompileOrLog( ffglex::FFGLShader& shader, const char* vertex, const 
 	const char* renderer = (const char*)glGetString( GL_RENDERER );
 	message += std::string( " [GL " ) + ( version ? version : "?" ) + ", " + ( renderer ? renderer : "?" ) + "]";
 	FFGLLog::LogToHost( message.c_str() );
+	if( errorOut )
+		*errorOut = message;
 	return false;
 }

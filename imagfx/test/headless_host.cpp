@@ -334,6 +334,13 @@ int main( int argc, char** argv )
 		}
 	}
 
+	if( paramIndex.count( "Status" ) )
+	{
+		in.UIntValue       = paramIndex[ "Status" ];
+		const char* status = (const char*)plugMain( FF_GET_PARAMETER, in, instance ).PointerValue;
+		std::printf( "Status: %s\n", status ? status : "(none)" );
+	}
+
 	plugMain( FF_DEINSTANTIATE_GL, in, instance );
 	in.UIntValue = 0;
 	plugMain( FF_DEINITIALISE, in, nullptr );

@@ -4,7 +4,11 @@
 // IMAG Looks: one stylise pass over the copied input. Every look is built from the same blocks:
 //   levels (black crush + contrast) -> gradient map or stylise -> edges / glow -> texture -> sparkles
 // Look indices must match kLookNames in ImagLooks.cpp.
-static const char kLooksFragmentShader[] = "#version 410 core\n"
+//
+// This is a body, not a complete shader: the plugin prepends "#version" and "#define LOOK_ID n" and
+// compiles one small program per look, so the compiler drops every other look's code. One shader with
+// all looks behind a runtime switch was too large for some drivers.
+static const char kLooksFragmentBody[] =
 	GLSL_NOISE_COMMON
 	R"(
 uniform sampler2D InputTex;
@@ -14,7 +18,7 @@ uniform float BeatPhase; // 0..1 per beat (or free-running)
 uniform float BeatIndex; // increments once per beat
 uniform float Step;      // increments at the animation rate, for stop-motion / boil effects
 
-uniform int Look;
+const int Look = LOOK_ID;
 uniform float Mix;
 uniform float Intensity;
 uniform float Crush;

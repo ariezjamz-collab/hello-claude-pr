@@ -3,6 +3,7 @@
 #include "PluginLog.h"
 #include <algorithm>
 #include <cmath>
+#include <string>
 
 using namespace ffglex;
 
@@ -22,6 +23,7 @@ enum ParamID : FFUInt32
 	PID_HUE,
 	PID_BPM_SYNC,
 	PID_ANIM_RATE,
+	PID_STATUS,
 	PID_COUNT
 };
 
@@ -45,7 +47,11 @@ static CFFGLPluginInfo PluginInfo(
 	"IMAG FX prototype" );
 
 ImagLooks::ImagLooks() :
-	params( PID_COUNT, 0.0f )
+	lookShaders( kLookCount ),
+	lookStates( kLookCount, ShaderState::NotCompiled ),
+	lookErrors( kLookCount ),
+	params( PID_COUNT, 0.0f ),
+	status( "Starting" )
 {
 	SetMinInputs( 1 );
 	SetMaxInputs( 1 );
@@ -75,14 +81,15 @@ ImagLooks::ImagLooks() :
 	SetParamInfof( PID_HUE, "Hue Shift", FF_TYPE_STANDARD );
 	SetParamInfo( PID_BPM_SYNC, "BPM Sync", FF_TYPE_BOOLEAN, true );
 	SetParamInfof( PID_ANIM_RATE, "Animation Rate", FF_TYPE_STANDARD );
+	SetParamInfo( PID_STATUS, "Status", FF_TYPE_TEXT, status.c_str() );
 }
 
 FFResult ImagLooks::InitGL( const FFGLViewportStruct* vp )
 {
-	if( !CompileOrLog( copyShader, kVertexShader, kCopyFragmentShader, "IMAG Looks", "copy" ) ||
-		!CompileOrLog( looksShader, kVertexShader, kLooksFragmentShader, "IMAG Looks", "looks" ) ||
-		!quad.Initialise() )
+	std::string error;
+	if( !CompileOrLog( copyShader, kVertexShader, kCopyFragmentShader, "IMAG Looks", "copy", &error ) || !quad.Initialise() )
 	{
+		SetStatus( error.empty() ? "Could not create GPU resources" : error );
 		DeInitGL();
 		return FF_FAIL;
 	}
@@ -93,10 +100,39 @@ FFResult ImagLooks::InitGL( const FFGLViewportStruct* vp )
 FFResult ImagLooks::DeInitGL()
 {
 	copyShader.FreeGLResources();
-	looksShader.FreeGLResources();
+	for( auto& shader : lookShaders )
+		shader.FreeGLResources();
+	std::fill( lookStates.begin(), lookStates.end(), ShaderState::NotCompiled );
 	quad.Release();
 	frame.Release();
 	return FF_SUCCESS;
+}
+
+// Compiles a look's program on first use. Returns nullptr if the driver rejected it.
+FFGLShader* ImagLooks::LookShader( int look )
+{
+	if( lookStates[ look ] == ShaderState::NotCompiled )
+	{
+		const std::string source = std::string( "#version 410 core\n#define LOOK_ID " ) + std::to_string( look ) + "\n" + kLooksFragmentBody;
+		const std::string pass   = std::string( "look '" ) + kLookNames[ look ] + "'";
+		bool ok = CompileOrLog( lookShaders[ look ], kVertexShader, source.c_str(), "IMAG Looks", pass.c_str(), &lookErrors[ look ] );
+		lookStates[ look ] = ok ? ShaderState::Ready : ShaderState::Failed;
+	}
+	if( lookStates[ look ] == ShaderState::Failed )
+	{
+		SetStatus( lookErrors[ look ] );
+		return nullptr;
+	}
+	SetStatus( std::string( "OK: " ) + kLookNames[ look ] );
+	return &lookShaders[ look ];
+}
+
+void ImagLooks::SetStatus( const std::string& text )
+{
+	if( text == status )
+		return;
+	status = text;
+	RaiseParamEvent( PID_STATUS, FF_EVENT_FLAG_VALUE );
 }
 
 FFResult ImagLooks::ProcessOpenGL( ProcessOpenGLStruct* pGL )
@@ -148,27 +184,39 @@ FFResult ImagLooks::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 	}
 
 	glViewport( currentViewport.x, currentViewport.y, currentViewport.width, currentViewport.height );
+	const int look     = std::min( std::max( (int)std::lround( params[ PID_LOOK ] ), 0 ), (int)kLookCount - 1 );
+	FFGLShader* shader = LookShader( look );
+	if( shader == nullptr )
 	{
-		ScopedShaderBinding shaderBinding( looksShader.GetGLID() );
+		// This look's shader was rejected: pass the image through and leave the reason in Status.
+		ScopedShaderBinding shaderBinding( copyShader.GetGLID() );
 		ScopedSamplerActivation activateSampler( 0 );
 		Scoped2DTextureBinding textureBinding( frame.GetTextureInfo().Handle );
-		looksShader.Set( "InputTex", 0 );
-		looksShader.Set( "MaxUV", 1.0f, 1.0f );
-		looksShader.Set( "Resolution", (float)input.Width, (float)input.Height );
-		looksShader.Set( "Time", time );
-		looksShader.Set( "BeatPhase", beatPhase );
-		looksShader.Set( "BeatIndex", beatIndex );
-		looksShader.Set( "Step", std::fmod( step, 997.0f ) );
-		looksShader.Set( "Look", std::min( std::max( (int)std::lround( params[ PID_LOOK ] ), 0 ), (int)kLookCount - 1 ) );
-		looksShader.Set( "Mix", params[ PID_MIX ] );
-		looksShader.Set( "Intensity", params[ PID_INTENSITY ] );
-		looksShader.Set( "Crush", params[ PID_CRUSH ] * 0.6f );
-		looksShader.Set( "Contrast", params[ PID_CONTRAST ] );
-		looksShader.Set( "EdgeGlow", params[ PID_EDGE_GLOW ] * 2.0f );
-		looksShader.Set( "Detail", params[ PID_DETAIL ] );
-		looksShader.Set( "Texture", params[ PID_TEXTURE ] );
-		looksShader.Set( "Sparkles", params[ PID_SPARKLES ] );
-		looksShader.Set( "HueShift", params[ PID_HUE ] );
+		copyShader.Set( "InputTexture", 0 );
+		copyShader.Set( "MaxUV", 1.0f, 1.0f );
+		quad.Draw();
+		return FF_SUCCESS;
+	}
+	{
+		ScopedShaderBinding shaderBinding( shader->GetGLID() );
+		ScopedSamplerActivation activateSampler( 0 );
+		Scoped2DTextureBinding textureBinding( frame.GetTextureInfo().Handle );
+		shader->Set( "InputTex", 0 );
+		shader->Set( "MaxUV", 1.0f, 1.0f );
+		shader->Set( "Resolution", (float)input.Width, (float)input.Height );
+		shader->Set( "Time", time );
+		shader->Set( "BeatPhase", beatPhase );
+		shader->Set( "BeatIndex", beatIndex );
+		shader->Set( "Step", std::fmod( step, 997.0f ) );
+		shader->Set( "Mix", params[ PID_MIX ] );
+		shader->Set( "Intensity", params[ PID_INTENSITY ] );
+		shader->Set( "Crush", params[ PID_CRUSH ] * 0.6f );
+		shader->Set( "Contrast", params[ PID_CONTRAST ] );
+		shader->Set( "EdgeGlow", params[ PID_EDGE_GLOW ] * 2.0f );
+		shader->Set( "Detail", params[ PID_DETAIL ] );
+		shader->Set( "Texture", params[ PID_TEXTURE ] );
+		shader->Set( "Sparkles", params[ PID_SPARKLES ] );
+		shader->Set( "HueShift", params[ PID_HUE ] );
 		quad.Draw();
 	}
 	return FF_SUCCESS;
@@ -185,4 +233,14 @@ FFResult ImagLooks::SetFloatParameter( unsigned int index, float value )
 float ImagLooks::GetFloatParameter( unsigned int index )
 {
 	return index < PID_COUNT ? params[ index ] : 0.0f;
+}
+
+FFResult ImagLooks::SetTextParameter( unsigned int index, const char* )
+{
+	return index == PID_STATUS ? FF_SUCCESS : FF_FAIL;//Status is read-only; typing into it changes nothing.
+}
+
+char* ImagLooks::GetTextParameter( unsigned int index )
+{
+	return index == PID_STATUS ? const_cast< char* >( status.c_str() ) : nullptr;
 }
